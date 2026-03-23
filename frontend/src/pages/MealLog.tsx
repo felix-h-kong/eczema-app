@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { createLogEntry, uploadImage, lookupBarcode } from '../api';
 import { Toast } from '../components/Toast';
+import { BarcodeScanner } from '../components/BarcodeScanner';
 
 interface MealLogProps {
   onBack: () => void;
@@ -77,7 +78,7 @@ export function MealLog({ onBack }: MealLogProps) {
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
-  const [barcodeMode, setBarcodeMode] = useState(false);
+  const [barcodeMode, setBarcodeMode] = useState<'off' | 'manual' | 'scanning'>('off');
   const [upc, setUpc] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [showSkinCheck, setShowSkinCheck] = useState(false);
@@ -120,14 +121,14 @@ export function MealLog({ onBack }: MealLogProps) {
     e.target.value = '';
   }
 
-  async function handleBarcodeLookup() {
-    if (!upc.trim()) return;
+  async function doBarcodeLookup(code: string) {
+    if (!code.trim()) return;
     setBarcodeLoading(true);
     setError('');
     try {
-      const { ingredients } = await lookupBarcode(upc.trim());
+      const { ingredients } = await lookupBarcode(code.trim());
       setText(prev => prev ? `${prev}\n${ingredients}` : ingredients);
-      setBarcodeMode(false);
+      setBarcodeMode('off');
       setUpc('');
       setToast('Ingredients added from barcode');
     } catch (err) {
@@ -136,6 +137,11 @@ export function MealLog({ onBack }: MealLogProps) {
       setBarcodeLoading(false);
     }
   }
+
+  const handleBarcodeDetected = useCallback((code: string) => {
+    setBarcodeMode('off');
+    doBarcodeLookup(code);
+  }, []);
 
   const pillStyle = (active?: boolean) => ({
     background: active ? 'var(--primary-light)' : 'var(--bg-surface-2)',
@@ -224,14 +230,17 @@ export function MealLog({ onBack }: MealLogProps) {
           style={{ display: 'none' }}
         />
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: barcodeMode || customTime !== null ? 8 : 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: barcodeMode !== 'off' || customTime !== null ? 8 : 16, flexWrap: 'wrap' }}>
           <button type="button" onClick={() => cameraRef.current?.click()} style={pillStyle(photos.length > 0)}>
             Camera{photos.length > 0 ? ` (${photos.length})` : ''}
           </button>
           <button type="button" onClick={() => galleryRef.current?.click()} style={pillStyle(false)}>
             Gallery
           </button>
-          <button type="button" onClick={() => setBarcodeMode(!barcodeMode)} style={pillStyle(barcodeMode)}>
+          <button type="button" onClick={() => {
+            if (barcodeMode !== 'off') { setBarcodeMode('off'); }
+            else { setBarcodeMode('scanning'); }
+          }} style={pillStyle(barcodeMode !== 'off')}>
             Barcode
           </button>
           <button type="button" onClick={() => setCustomTime(customTime !== null ? null : '')} style={pillStyle(customTime !== null)}>
@@ -239,7 +248,7 @@ export function MealLog({ onBack }: MealLogProps) {
           </button>
         </div>
 
-        {barcodeMode && (
+        {barcodeMode === 'manual' && (
           <div style={{
             display: 'flex', gap: 8, marginBottom: customTime !== null ? 8 : 16,
           }}>
@@ -250,7 +259,7 @@ export function MealLog({ onBack }: MealLogProps) {
               value={upc}
               onChange={e => setUpc(e.target.value)}
               placeholder="Enter barcode number"
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBarcodeLookup(); } }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doBarcodeLookup(upc); } }}
               style={{
                 flex: 1, padding: '10px 14px', fontSize: 15,
                 border: '0.5px solid var(--border)', borderRadius: 14,
@@ -258,7 +267,7 @@ export function MealLog({ onBack }: MealLogProps) {
                 fontFamily: 'inherit', outline: 'none',
               }}
             />
-            <button type="button" onClick={handleBarcodeLookup} disabled={barcodeLoading || !upc.trim()} style={{
+            <button type="button" onClick={() => doBarcodeLookup(upc)} disabled={barcodeLoading || !upc.trim()} style={{
               padding: '10px 16px', fontSize: 14, fontWeight: 500, borderRadius: 14,
               border: 'none', background: 'var(--primary)', color: '#FDF8F3',
               cursor: barcodeLoading || !upc.trim() ? 'not-allowed' : 'pointer',
@@ -301,12 +310,27 @@ export function MealLog({ onBack }: MealLogProps) {
           {submitting ? 'Saving\u2026' : 'Log Meal'}
         </button>
       </form>
+      {barcodeLoading && (
+        <div style={{
+          textAlign: 'center', padding: 12, fontSize: 13,
+          color: 'var(--text-secondary)', marginTop: 8,
+        }}>
+          Looking up barcode\u2026
+        </div>
+      )}
       {showSkinCheck && (
         <div style={{ marginTop: 16 }}>
           <SkinCheck onDone={() => { setShowSkinCheck(false); textareaRef.current?.focus(); }} />
         </div>
       )}
       <Toast message={toast} visible={!!toast} onDone={() => setToast('')} />
+      {barcodeMode === 'scanning' && (
+        <BarcodeScanner
+          onDetected={handleBarcodeDetected}
+          onClose={() => setBarcodeMode('off')}
+          onManualEntry={() => setBarcodeMode('manual')}
+        />
+      )}
     </div>
   );
 }

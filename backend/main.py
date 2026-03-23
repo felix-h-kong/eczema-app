@@ -259,11 +259,13 @@ def barcode_lookup(upc: str):
     resp = httpx.get(f"https://world.openfoodfacts.org/api/v0/product/{upc}.json")
     data = resp.json()
     if data.get("status") != 1:
-        raise HTTPException(status_code=404, detail="Product not found")
-    ingredients = data.get("product", {}).get("ingredients_text", "")
+        raise HTTPException(status_code=404, detail=f"Product not found for barcode {upc}. It may not be in the Open Food Facts database.")
+    product = data.get("product", {})
+    ingredients = product.get("ingredients_text", "")
+    name = product.get("product_name", "")
     if not ingredients:
-        raise HTTPException(status_code=404, detail="No ingredients listed for this product")
-    return {"ingredients": ingredients}
+        raise HTTPException(status_code=404, detail=f"No ingredients listed for '{name or upc}'. Try entering them manually.")
+    return {"ingredients": ingredients, "name": name}
 
 
 # Serve static files (built frontend) — must be last
