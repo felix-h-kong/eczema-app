@@ -6,6 +6,70 @@ interface MealLogProps {
   onBack: () => void;
 }
 
+function SkinCheck({ onDone }: { onDone: () => void }) {
+  const [severity, setSeverity] = useState(3);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    try {
+      await createLogEntry({
+        timestamp: new Date().toISOString(),
+        type: 'flare',
+        severity,
+        notes: 'Skin check-in (with meal)',
+      });
+    } catch {
+      // Non-critical, don't block
+    }
+    onDone();
+  }
+
+  return (
+    <div style={{
+      background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+      borderRadius: 14, padding: 16, textAlign: 'center',
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8,
+      }}>
+        Quick skin check
+      </div>
+      <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 12 }}>
+        How's your skin right now? <strong>{severity}</strong> / 10
+      </div>
+      <input
+        type="range" min={1} max={10} value={severity}
+        onChange={e => setSeverity(Number(e.target.value))}
+        style={{ width: '100%', marginBottom: 4 }}
+      />
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        fontSize: 11, color: 'var(--text-hint)', marginBottom: 14,
+      }}>
+        <span>Clear (1)</span>
+        <span>Severe (10)</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={handleSubmit} disabled={submitting} style={{
+          flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 500, borderRadius: 14,
+          border: 'none', background: 'var(--primary)', color: '#FDF8F3', cursor: 'pointer',
+        }}>
+          Log
+        </button>
+        <button onClick={onDone} style={{
+          flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 500, borderRadius: 14,
+          border: '0.5px solid var(--border)', background: 'var(--bg-surface-2)',
+          color: 'var(--text-secondary)', cursor: 'pointer',
+        }}>
+          Skip
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MealLog({ onBack }: MealLogProps) {
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -16,6 +80,7 @@ export function MealLog({ onBack }: MealLogProps) {
   const [barcodeMode, setBarcodeMode] = useState(false);
   const [upc, setUpc] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [showSkinCheck, setShowSkinCheck] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -38,7 +103,7 @@ export function MealLog({ onBack }: MealLogProps) {
       setText('');
       setPhotos([]);
       setToast(photos.length > 0 ? 'Meal logged with photo!' : 'Meal logged!');
-      textareaRef.current?.focus();
+      setShowSkinCheck(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -236,6 +301,11 @@ export function MealLog({ onBack }: MealLogProps) {
           {submitting ? 'Saving\u2026' : 'Log Meal'}
         </button>
       </form>
+      {showSkinCheck && (
+        <div style={{ marginTop: 16 }}>
+          <SkinCheck onDone={() => { setShowSkinCheck(false); textareaRef.current?.focus(); }} />
+        </div>
+      )}
       <Toast message={toast} visible={!!toast} onDone={() => setToast('')} />
     </div>
   );

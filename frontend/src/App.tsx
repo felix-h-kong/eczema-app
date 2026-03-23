@@ -4,6 +4,7 @@ import { LogHub } from './pages/LogHub';
 import { MealLog } from './pages/MealLog';
 import { FlareLog } from './pages/FlareLog';
 import { MedsLog } from './pages/MedsLog';
+import { EventLog } from './pages/EventLog';
 import { History } from './pages/History';
 import { Analysis } from './pages/Analysis';
 import { subscribePush } from './api';
@@ -52,6 +53,7 @@ function App() {
       {tab === 'log' && logForm === 'meal' && <MealLog onBack={handleBack} />}
       {tab === 'log' && logForm === 'flare' && <FlareLog onBack={handleBack} />}
       {tab === 'log' && logForm === 'meds' && <MedsLog onBack={handleBack} />}
+      {tab === 'log' && logForm === 'event' && <EventLog onBack={handleBack} />}
       {tab === 'history' && <History />}
       {tab === 'analysis' && <Analysis />}
       <TabBar active={tab} onSelect={(t) => { setTab(t); setLogForm(null); }} />

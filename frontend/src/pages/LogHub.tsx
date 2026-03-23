@@ -73,6 +73,24 @@ export function LogHub({ onSelect }: LogHubProps) {
           </div>
         </button>
 
+        {/* Event — secondary card */}
+        <button onClick={() => onSelect('event')} style={{
+          display: 'flex', alignItems: 'center', gap: 14,
+          background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 18,
+          padding: '14px 16px', cursor: 'pointer', textAlign: 'left', width: '100%',
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 11,
+            background: 'var(--bg-surface-2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, flexShrink: 0,
+          }}>{'\u{1F4CB}'}</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>Log event</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nails · Shower · Sleep · Stress</div>
+          </div>
+        </button>
+
         {/* Medication — secondary card */}
         <button onClick={() => onSelect('meds')} style={{
           display: 'flex', alignItems: 'center', gap: 14,
@@ -111,9 +129,11 @@ export function LogHub({ onSelect }: LogHubProps) {
             {entries.map((entry, i) => {
               const typeColor = entry.type === 'meal' ? 'var(--type-meal)'
                 : entry.type === 'flare' ? 'var(--type-flare)'
+                : entry.type === 'note' ? 'var(--text-secondary)'
                 : 'var(--type-med)';
               const label = entry.type === 'flare' ? `Flare \u00B7 severity ${entry.severity}`
                 : entry.type === 'medication' ? entry.medication_name || 'Medication'
+                : entry.type === 'note' ? 'Event'
                 : 'Meal';
               const body = entry.raw_input || entry.notes || '';
               return (

@@ -196,9 +196,11 @@ export function History() {
             {dayEntries.map((entry, i) => {
               const typeColor = entry.type === 'meal' ? 'var(--type-meal)'
                 : entry.type === 'flare' ? 'var(--type-flare)'
+                : entry.type === 'note' ? 'var(--text-secondary)'
                 : 'var(--type-med)';
               const label = entry.type === 'flare' ? `Flare \u00B7 severity ${entry.severity}`
                 : entry.type === 'medication' ? entry.medication_name || 'Medication'
+                : entry.type === 'note' ? 'Event'
                 : 'Meal';
               const body = entry.raw_input || entry.notes || '';
               const isExpanded = expandedId === entry.id;
