@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
-import { createLogEntry, uploadImage, lookupBarcode } from '../api';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { createLogEntry, getLogEntries, uploadImage, lookupBarcode } from '../api';
+import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 
@@ -71,6 +72,58 @@ function SkinCheck({ onDone }: { onDone: () => void }) {
   );
 }
 
+function RecentMeals({ onSelect }: { onSelect: (text: string) => void }) {
+  const [meals, setMeals] = useState<LogEntry[]>([]);
+
+  useEffect(() => {
+    getLogEntries({ type: 'meal' }).then(entries => {
+      // Deduplicate by raw_input, keep most recent, limit to 5
+      const seen = new Set<string>();
+      const unique: LogEntry[] = [];
+      for (const e of entries) {
+        const key = (e.raw_input || '').trim().toLowerCase();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          unique.push(e);
+          if (unique.length >= 5) break;
+        }
+      }
+      setMeals(unique);
+    }).catch(() => {});
+  }, []);
+
+  if (meals.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6,
+      }}>
+        Recent meals
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {meals.map(m => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onSelect(m.raw_input || '')}
+            style={{
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+              borderRadius: 10, padding: '6px 10px', fontSize: 13,
+              color: 'var(--text-primary)', cursor: 'pointer',
+              maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', textAlign: 'left',
+            }}
+          >
+            {(m.raw_input || '').length > 40 ? (m.raw_input || '').slice(0, 40) + '\u2026' : m.raw_input}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MealLog({ onBack }: MealLogProps) {
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -81,7 +134,7 @@ export function MealLog({ onBack }: MealLogProps) {
   const [barcodeMode, setBarcodeMode] = useState<'off' | 'manual' | 'scanning'>('off');
   const [upc, setUpc] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
-  const [showSkinCheck, setShowSkinCheck] = useState(false);
+  const [skinCheckDone, setSkinCheckDone] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -104,7 +157,6 @@ export function MealLog({ onBack }: MealLogProps) {
       setText('');
       setPhotos([]);
       setToast(photos.length > 0 ? 'Meal logged with photo!' : 'Meal logged!');
-      setShowSkinCheck(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -160,6 +212,15 @@ export function MealLog({ onBack }: MealLogProps) {
       }}>
         {'\u2190'} Log meal
       </button>
+
+      {/* Skin check — shown once per visit until answered */}
+      {!skinCheckDone && (
+        <div style={{ marginBottom: 14 }}>
+          <SkinCheck onDone={() => setSkinCheckDone(true)} />
+        </div>
+      )}
+
+      <RecentMeals onSelect={(t) => setText(t)} />
 
       <form onSubmit={handleSubmit}>
         <div style={{
@@ -316,11 +377,6 @@ export function MealLog({ onBack }: MealLogProps) {
           color: 'var(--text-secondary)', marginTop: 8,
         }}>
           Looking up barcode\u2026
-        </div>
-      )}
-      {showSkinCheck && (
-        <div style={{ marginTop: 16 }}>
-          <SkinCheck onDone={() => { setShowSkinCheck(false); textareaRef.current?.focus(); }} />
         </div>
       )}
       <Toast message={toast} visible={!!toast} onDone={() => setToast('')} />
