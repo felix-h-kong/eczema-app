@@ -4,6 +4,8 @@ from enum import Enum
 from threading import Thread
 from typing import Optional
 
+import httpx
+
 from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -203,6 +205,18 @@ def startup():
     db = get_db()
     from notifications import setup_scheduler
     setup_scheduler(db)
+
+
+@app.post("/api/barcode/{upc}")
+def barcode_lookup(upc: str):
+    resp = httpx.get(f"https://world.openfoodfacts.org/api/v0/product/{upc}.json")
+    data = resp.json()
+    if data.get("status") != 1:
+        raise HTTPException(status_code=404, detail="Product not found")
+    ingredients = data.get("product", {}).get("ingredients_text", "")
+    if not ingredients:
+        raise HTTPException(status_code=404, detail="No ingredients listed for this product")
+    return {"ingredients": ingredients}
 
 
 # Serve static files (built frontend) — must be last
