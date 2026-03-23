@@ -98,6 +98,13 @@ CREATE TABLE entry_images (
     image_path TEXT,                   -- relative path within data/images/
     timestamp TEXT
 );
+
+CREATE TABLE push_subscriptions (
+    id INTEGER PRIMARY KEY,
+    endpoint TEXT UNIQUE NOT NULL,
+    keys_json TEXT NOT NULL,           -- JSON: {"p256dh": "...", "auth": "..."}
+    created_at TEXT NOT NULL
+);
 ```
 
 **`parse_status` field:** Enables "save immediately, parse later." Meal entries are saved with `parse_status='pending'`, Claude parses in the background, updates to `'parsed'` or `'failed'`. Failed entries are retried with exponential backoff (1min, 5min, 30min, then stop).
@@ -125,8 +132,12 @@ CREATE TABLE entry_images (
 | `POST` | `/api/push/subscribe` | Register Web Push subscription |
 | `GET` | `/api/admin/ingredients` | All unique ingredients sorted by frequency |
 | `POST` | `/api/admin/aliases` | Add/update alias mapping |
+| `PUT` | `/api/log/{id}` | Update an existing log entry |
+| `DELETE` | `/api/log/{id}` | Delete a log entry |
 
 **Error format:** All errors return `{"error": "message", "detail": "..."}` with appropriate HTTP status codes.
+
+**Analysis job storage:** Job state and results stored in an in-memory dict keyed by job ID. Jobs are short-lived (analysis completes in seconds) so persistence isn't needed — if the server restarts, the user just re-runs the analysis.
 
 **Security note:** The admin endpoints have no auth. This is acceptable while the app is single-user on Tailscale. **TODO: If this app is ever exposed beyond Tailscale, all endpoints — especially `/api/admin/*` and `/api/log` — need authentication. Without it, anyone with network access can read health data and write to the database.**
 
