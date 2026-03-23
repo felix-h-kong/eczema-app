@@ -4,7 +4,7 @@ dev-backend:
 	cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 dev-frontend:
-	cd frontend && npm run dev
+	cd frontend && npm run dev -- --host 0.0.0.0
 
 dev:
 	$(MAKE) dev-backend & $(MAKE) dev-frontend & wait

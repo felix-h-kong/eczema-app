@@ -11,6 +11,7 @@ export function MealLog({ onBack }: MealLogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(false);
   const [error, setError] = useState('');
+  const [customTime, setCustomTime] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -20,7 +21,7 @@ export function MealLog({ onBack }: MealLogProps) {
     setError('');
     try {
       await createLogEntry({
-        timestamp: new Date().toISOString(),
+        timestamp: customTime ? new Date(customTime).toISOString() : new Date().toISOString(),
         type: 'meal',
         raw_input: text.trim(),
       });
@@ -73,7 +74,7 @@ export function MealLog({ onBack }: MealLogProps) {
           />
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: customTime !== null ? 8 : 16, flexWrap: 'wrap' }}>
           <button type="button" style={{
             background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
             borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
@@ -88,7 +89,31 @@ export function MealLog({ onBack }: MealLogProps) {
           }}>
             Barcode
           </button>
+          <button type="button" onClick={() => setCustomTime(customTime !== null ? null : '')} style={{
+            background: customTime !== null ? 'var(--primary-light)' : 'var(--bg-surface-2)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
+            color: customTime !== null ? 'var(--primary)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}>
+            Set time
+          </button>
         </div>
+        {customTime !== null && (
+          <div style={{ marginBottom: 16 }}>
+            <input
+              type="datetime-local"
+              value={customTime}
+              onChange={e => setCustomTime(e.target.value)}
+              style={{
+                width: '100%', padding: '10px 14px', fontSize: 15,
+                border: '0.5px solid var(--border)', borderRadius: 14,
+                background: 'var(--bg-surface)', color: 'var(--text-primary)',
+                fontFamily: 'inherit',
+              }}
+            />
+          </div>
+        )}
 
         {error && <p style={{ color: 'var(--type-flare)', marginBottom: 8, fontSize: 13 }}>{error}</p>}
 

@@ -1,16 +1,21 @@
 import json
+import os
 import uuid
 from enum import Enum
+from pathlib import Path
 from threading import Thread
 from typing import Optional
 
 import httpx
+from dotenv import load_dotenv
 
 from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from config import DB_PATH, STATIC_DIR
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 from db import Database
 
 app = FastAPI()
@@ -205,6 +210,14 @@ def startup():
     db = get_db()
     from notifications import setup_scheduler
     setup_scheduler(db)
+
+
+@app.get("/api/push/vapid-key")
+def get_vapid_key():
+    key = os.environ.get("VAPID_PUBLIC_KEY", "")
+    if not key:
+        raise HTTPException(status_code=500, detail="VAPID public key not configured")
+    return {"public_key": key}
 
 
 @app.post("/api/barcode/{upc}")

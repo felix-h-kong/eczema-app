@@ -34,6 +34,7 @@ class Database:
         return _CursorProxy(rows)
 
     def init(self):
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = self._connect()
         try:
             conn.executescript("""
