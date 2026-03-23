@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 
 interface BarcodeScannerProps {
   onDetected: (code: string) => void;
@@ -9,68 +9,120 @@ interface BarcodeScannerProps {
 export function BarcodeScanner({ onDetected, onClose, onManualEntry }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [mode, setMode] = useState<'starting' | 'live' | 'photo'>('starting');
   const [error, setError] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const stopStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     let animFrame: number;
 
-    async function start() {
-      // Check for BarcodeDetector support
-      if (!('BarcodeDetector' in window)) {
-        setError('Barcode scanning not supported on this browser.');
-        return;
+    async function tryLiveScanning() {
+      // Need both BarcodeDetector and getUserMedia
+      const hasBarcodeDetector = 'BarcodeDetector' in window;
+      let hasCamera = false;
+
+      if (hasBarcodeDetector) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+          if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+          streamRef.current = stream;
+          hasCamera = true;
+        } catch {
+          // getUserMedia failed (likely insecure context over HTTP)
+        }
       }
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
-        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
-        streamRef.current = stream;
+      if (hasCamera && hasBarcodeDetector) {
+        // Live scanning mode
+        if (cancelled) return;
+        setMode('live');
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = streamRef.current;
           await videoRef.current.play();
         }
-      } catch {
-        setError('Camera access denied or unavailable. Use manual entry instead.');
-        return;
-      }
 
-      // @ts-ignore - BarcodeDetector not in TS lib
-      const detector = new BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
-      });
+        // @ts-ignore
+        const detector = new BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
+        });
 
-      async function scan() {
-        if (cancelled || !videoRef.current) return;
-        try {
-          const barcodes = await detector.detect(videoRef.current);
-          if (barcodes.length > 0 && !cancelled) {
-            onDetected(barcodes[0].rawValue);
-            return; // Stop scanning
+        async function scan() {
+          if (cancelled || !videoRef.current) return;
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0 && !cancelled) {
+              onDetected(barcodes[0].rawValue);
+              return;
+            }
+          } catch {
+            // Frame not ready, keep trying
           }
-        } catch {
-          // Frame not ready yet, keep trying
+          animFrame = requestAnimationFrame(scan);
         }
-        animFrame = requestAnimationFrame(scan);
-      }
 
-      // Small delay for camera to warm up
-      setTimeout(() => { if (!cancelled) scan(); }, 500);
+        setTimeout(() => { if (!cancelled) scan(); }, 500);
+      } else {
+        // Fall back to photo mode
+        if (cancelled) return;
+        setMode('photo');
+        if (!hasBarcodeDetector) {
+          setError('Barcode detection not supported. Enter the number manually.');
+        }
+      }
     }
 
-    start();
+    tryLiveScanning();
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(animFrame);
-      streamRef.current?.getTracks().forEach(t => t.stop());
+      stopStream();
     };
-  }, [onDetected]);
+  }, [onDetected, stopStream]);
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!('BarcodeDetector' in window)) {
+      setError('Barcode detection not supported on this browser.');
+      return;
+    }
+
+    setProcessing(true);
+    setError('');
+    try {
+      const bitmap = await createImageBitmap(file);
+      // @ts-ignore
+      const detector = new BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
+      });
+      const barcodes = await detector.detect(bitmap);
+      bitmap.close();
+      if (barcodes.length > 0) {
+        onDetected(barcodes[0].rawValue);
+      } else {
+        setError('No barcode found in photo. Try again or enter manually.');
+      }
+    } catch {
+      setError('Failed to read barcode. Try again or enter manually.');
+    } finally {
+      setProcessing(false);
+    }
+  }
 
   function handleClose() {
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    stopStream();
     onClose();
   }
 
@@ -79,31 +131,78 @@ export function BarcodeScanner({ onDetected, onClose, onManualEntry }: BarcodeSc
       position: 'fixed', inset: 0, zIndex: 1000,
       background: '#000', display: 'flex', flexDirection: 'column',
     }}>
-      {/* Camera view */}
+      {/* Camera / photo area */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-        {/* Scanning guide overlay */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        {mode === 'live' && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        )}
+
+        {mode === 'photo' && (
           <div style={{
-            width: '75%', height: 120, border: '2px solid rgba(255,255,255,0.6)',
-            borderRadius: 12,
-          }} />
-        </div>
-        {/* Hint text */}
+            width: '100%', height: '100%',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 16,
+            padding: 32,
+          }}>
+            <div style={{ fontSize: 40 }}>{'\uD83D\uDCF7'}</div>
+            <div style={{ color: '#fff', fontSize: 15, textAlign: 'center', lineHeight: 1.5 }}>
+              Live scanning needs HTTPS.<br />
+              Take a photo of the barcode instead.
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhoto}
+              style={{ display: 'none' }}
+            />
+            <button onClick={() => fileRef.current?.click()} disabled={processing} style={{
+              padding: '14px 32px', fontSize: 16, fontWeight: 500, borderRadius: 14,
+              border: 'none', background: 'var(--primary)', color: '#FDF8F3',
+              cursor: processing ? 'not-allowed' : 'pointer',
+              opacity: processing ? 0.6 : 1,
+            }}>
+              {processing ? 'Reading\u2026' : 'Take photo'}
+            </button>
+          </div>
+        )}
+
+        {mode === 'starting' && (
+          <div style={{
+            width: '100%', height: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'rgba(255,255,255,0.6)', fontSize: 14,
+          }}>
+            Starting camera\u2026
+          </div>
+        )}
+
+        {/* Scanning guide overlay (live mode) */}
+        {mode === 'live' && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <div style={{
+              width: '75%', height: 120, border: '2px solid rgba(255,255,255,0.6)',
+              borderRadius: 12,
+            }} />
+          </div>
+        )}
+
+        {/* Status text */}
         <div style={{
           position: 'absolute', bottom: 120, left: 0, right: 0,
-          textAlign: 'center', color: 'rgba(255,255,255,0.8)',
-          fontSize: 14, fontFamily: 'inherit',
+          textAlign: 'center', color: error ? '#E06848' : 'rgba(255,255,255,0.8)',
+          fontSize: 14, fontFamily: 'inherit', padding: '0 20px',
         }}>
-          {error || 'Point at a barcode'}
+          {error || (mode === 'live' ? 'Point at a barcode' : '')}
         </div>
       </div>
 
@@ -124,7 +223,7 @@ export function BarcodeScanner({ onDetected, onClose, onManualEntry }: BarcodeSc
           flex: 1, padding: '12px 0', fontSize: 15, fontWeight: 500, borderRadius: 14,
           border: 'none', background: 'var(--primary)', color: '#FDF8F3', cursor: 'pointer',
         }}>
-          Enter manually
+          Type number
         </button>
       </div>
     </div>
