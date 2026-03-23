@@ -2,7 +2,11 @@ import { useState, useRef } from 'react';
 import { createLogEntry } from '../api';
 import { Toast } from '../components/Toast';
 
-export function MealLog() {
+interface MealLogProps {
+  onBack: () => void;
+}
+
+export function MealLog({ onBack }: MealLogProps) {
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(false);
@@ -31,35 +35,75 @@ export function MealLog() {
   }
 
   return (
-    <div style={{ padding: '24px 16px 100px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 16 }}>Log Meal</h1>
+    <div style={{ padding: '16px 20px 100px' }}>
+      <button onClick={onBack} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 14, fontWeight: 500, color: 'var(--primary)',
+        padding: '4px 0', marginBottom: 12,
+      }}>
+        {'\u2190'} Log meal
+      </button>
+
       <form onSubmit={handleSubmit}>
-        <textarea
-          ref={textareaRef}
-          autoFocus
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="What did you eat? (e.g. oatmeal with blueberries, almond milk)"
-          rows={5}
-          style={{
-            width: '100%', padding: 12, fontSize: 16,
-            border: '1px solid #ccc', borderRadius: 8,
-            resize: 'vertical', fontFamily: 'inherit',
-          }}
-        />
-        {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
+        <div style={{
+          background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+          borderRadius: 14, padding: 14, marginBottom: 12,
+        }}>
+          <label style={{
+            display: 'block', fontSize: 11, fontWeight: 500,
+            letterSpacing: '0.05em', textTransform: 'uppercase',
+            color: 'var(--text-secondary)', marginBottom: 6,
+          }}>
+            What did you eat?
+          </label>
+          <textarea
+            ref={textareaRef}
+            autoFocus
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="e.g. oatmeal with blueberries, almond milk"
+            rows={4}
+            style={{
+              width: '100%', padding: 0, fontSize: 15,
+              border: 'none', background: 'transparent',
+              resize: 'vertical', fontFamily: 'inherit',
+              color: 'var(--text-primary)', outline: 'none',
+              lineHeight: 1.5,
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button type="button" style={{
+            background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
+            borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
+            color: 'var(--text-secondary)', cursor: 'pointer',
+          }}>
+            Photo
+          </button>
+          <button type="button" style={{
+            background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
+            borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
+            color: 'var(--text-secondary)', cursor: 'pointer',
+          }}>
+            Barcode
+          </button>
+        </div>
+
+        {error && <p style={{ color: 'var(--type-flare)', marginBottom: 8, fontSize: 13 }}>{error}</p>}
+
         <button
           type="submit"
           disabled={submitting || !text.trim()}
           style={{
-            marginTop: 12, width: '100%', padding: '12px 0',
-            fontSize: 16, fontWeight: 600, borderRadius: 8,
-            border: 'none', background: '#4f46e5', color: '#fff',
+            width: '100%', padding: '12px 0',
+            fontSize: 15, fontWeight: 500, borderRadius: 14,
+            border: 'none', background: 'var(--primary)', color: '#FDF8F3',
             cursor: submitting || !text.trim() ? 'not-allowed' : 'pointer',
             opacity: submitting || !text.trim() ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Saving…' : 'Log Meal'}
+          {submitting ? 'Saving\u2026' : 'Log Meal'}
         </button>
       </form>
       <Toast message="Meal logged!" visible={toast} onDone={() => setToast(false)} />

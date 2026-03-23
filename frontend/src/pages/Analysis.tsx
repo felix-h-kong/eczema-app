@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { startAnalysis, getAnalysisResult } from '../api';
+import { useState, useEffect, useCallback } from 'react';
+import { startAnalysis, getAnalysisResult, getLogEntries } from '../api';
 import type { AnalysisResult } from '../api';
 
 type AnalysisState =
@@ -11,6 +11,16 @@ type AnalysisState =
 export function Analysis() {
   const [useLikely, setUseLikely] = useState(false);
   const [state, setState] = useState<AnalysisState>({ phase: 'idle' });
+  const [flareCount, setFlareCount] = useState(0);
+
+  useEffect(() => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(now.getDate() - 30);
+    getLogEntries({ type: 'flare', from: from.toISOString() })
+      .then(entries => setFlareCount(entries.length))
+      .catch(() => {});
+  }, []);
 
   const poll = useCallback(async (jobId: string) => {
     const MAX_ATTEMPTS = 60;
@@ -46,12 +56,28 @@ export function Analysis() {
   }
 
   const isRunning = state.phase === 'running';
+  const maxLift = state.phase === 'done' && state.result.stats.length > 0
+    ? Math.max(...state.result.stats.map(s => s.lift))
+    : 1;
 
   return (
-    <div style={{ padding: '24px 16px 100px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 16 }}>Trigger Analysis</h1>
+    <div style={{ padding: '16px 20px', paddingBottom: 80 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4,
+      }}>
+        {flareCount} flare{flareCount !== 1 ? 's' : ''} in 30 days
+      </div>
+      <h1 style={{ fontSize: 24, fontWeight: 500, marginBottom: 16, color: 'var(--text-primary)' }}>Analyse</h1>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer' }}>
+      {/* Toggle */}
+      <label style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+        borderRadius: 14, padding: '12px 14px', marginBottom: 12,
+        cursor: 'pointer',
+      }}>
+        <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Include likely ingredients</span>
         <input
           type="checkbox"
           checked={useLikely}
@@ -59,7 +85,6 @@ export function Analysis() {
           disabled={isRunning}
           style={{ width: 18, height: 18 }}
         />
-        <span style={{ fontSize: 15 }}>Include likely ingredients (expand parsed lists)</span>
       </label>
 
       <button
@@ -67,28 +92,27 @@ export function Analysis() {
         disabled={isRunning}
         style={{
           width: '100%', padding: '12px 0',
-          fontSize: 16, fontWeight: 600, borderRadius: 8,
-          border: 'none', background: '#0ea5e9', color: '#fff',
+          fontSize: 15, fontWeight: 500, borderRadius: 14,
+          border: 'none', background: 'var(--primary)', color: '#FDF8F3',
           cursor: isRunning ? 'not-allowed' : 'pointer',
           opacity: isRunning ? 0.6 : 1,
-          marginBottom: 24,
+          marginBottom: 20,
         }}
       >
-        {isRunning ? 'Running analysis…' : 'Run Analysis'}
+        {isRunning ? 'Running analysis\u2026' : 'Run Analysis'}
       </button>
 
       {isRunning && (
-        <div style={{ textAlign: 'center', color: '#666', padding: 32 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-          <p>Analysing your logs…</p>
-          <p style={{ fontSize: 13, marginTop: 4 }}>This may take up to a minute</p>
+        <div style={{ textAlign: 'center', color: 'var(--text-hint)', padding: 32 }}>
+          <p style={{ fontSize: 14 }}>Analysing your logs\u2026</p>
+          <p style={{ fontSize: 12, marginTop: 4 }}>This may take up to a minute</p>
         </div>
       )}
 
       {state.phase === 'error' && (
         <div style={{
-          background: '#fef2f2', border: '1px solid #fca5a5',
-          borderRadius: 8, padding: 16, color: '#dc2626',
+          background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
+          borderRadius: 14, padding: 14, color: 'var(--type-flare)', fontSize: 14,
         }}>
           {state.message}
         </div>
@@ -98,62 +122,80 @@ export function Analysis() {
         <>
           {state.result.warning && (
             <div style={{
-              background: '#fffbeb', border: '1px solid #fcd34d',
-              borderRadius: 8, padding: 16, marginBottom: 16, color: '#92400e',
+              background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
+              borderRadius: 14, padding: 14, marginBottom: 16,
+              fontSize: 13, color: 'var(--text-secondary)',
             }}>
-              <strong>Warning:</strong> {state.result.warning}
+              {state.result.warning}
             </div>
           )}
 
-          {state.result.summary && (
+          {/* Top suspects with horizontal lift bars */}
+          {state.result.stats.length > 0 && (
             <div style={{
-              background: '#f0f9ff', border: '1px solid #bae6fd',
-              borderRadius: 8, padding: 16, marginBottom: 16,
-              fontSize: 15, lineHeight: 1.6,
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+              borderRadius: 14, padding: 14, marginBottom: 16,
             }}>
-              <strong style={{ display: 'block', marginBottom: 8 }}>Summary</strong>
-              {state.result.summary}
+              <div style={{
+                fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+                textTransform: 'uppercase', color: 'var(--text-secondary)',
+                marginBottom: 10,
+              }}>
+                Top suspects
+              </div>
+              {state.result.stats.map((row, i) => (
+                <div key={i} style={{ marginBottom: i < state.result.stats.length - 1 ? 10 : 0 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    marginBottom: 4,
+                  }}>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+                      {row.ingredient}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {row.lift.toFixed(1)}x lift
+                    </span>
+                  </div>
+                  <div style={{
+                    height: 6, borderRadius: 3,
+                    background: 'var(--bg-surface-2)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      background: row.lift > 1.5 ? 'var(--type-flare)' : 'var(--primary)',
+                      width: `${Math.min((row.lift / maxLift) * 100, 100)}%`,
+                    }} />
+                  </div>
+                </div>
+              ))}
+              <p style={{ marginTop: 10, fontSize: 11, color: 'var(--text-hint)' }}>
+                Lift = how much more often an ingredient appears before a flare vs. baseline.
+              </p>
             </div>
           )}
 
-          {state.result.stats.length === 0 ? (
-            <p style={{ color: '#666', textAlign: 'center', padding: 32 }}>
+          {state.result.stats.length === 0 && (
+            <p style={{ color: 'var(--text-hint)', textAlign: 'center', padding: 32, fontSize: 14 }}>
               Not enough data yet. Keep logging meals and flares!
             </p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 4px' }}>Ingredient</th>
-                    <th style={{ textAlign: 'right', padding: '8px 4px' }}>Lift</th>
-                    <th style={{ textAlign: 'right', padding: '8px 4px' }}>Flares</th>
-                    <th style={{ textAlign: 'right', padding: '8px 4px' }}>Confounded</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.result.stats.map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '8px 4px', fontWeight: 500 }}>{row.ingredient}</td>
-                      <td style={{
-                        padding: '8px 4px', textAlign: 'right',
-                        color: row.lift > 1.5 ? '#dc2626' : row.lift > 1 ? '#d97706' : '#059669',
-                        fontWeight: 600,
-                      }}>
-                        {row.lift.toFixed(2)}x
-                      </td>
-                      <td style={{ padding: '8px 4px', textAlign: 'right' }}>{row.flare_appearances}</td>
-                      <td style={{ padding: '8px 4px', textAlign: 'right', color: '#9ca3af' }}>
-                        {row.confounded > 0 ? row.confounded : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>
-                Lift = how much more often this ingredient appears before a flare vs. baseline.
-                Higher = stronger association.
-              </p>
+          )}
+
+          {/* Claude summary */}
+          {state.result.summary && (
+            <div style={{
+              background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
+              borderRadius: 14, padding: 14,
+              fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)',
+            }}>
+              <div style={{
+                fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+                textTransform: 'uppercase', color: 'var(--text-secondary)',
+                marginBottom: 6,
+              }}>
+                Summary
+              </div>
+              {state.result.summary}
             </div>
           )}
         </>

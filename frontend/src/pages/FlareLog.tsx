@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { createLogEntry } from '../api';
 import { Toast } from '../components/Toast';
 
-export function FlareLog() {
+interface FlareLogProps {
+  onBack: () => void;
+}
+
+export function FlareLog({ onBack }: FlareLogProps) {
   const [severity, setSeverity] = useState(5);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -31,48 +35,84 @@ export function FlareLog() {
   }
 
   return (
-    <div style={{ padding: '24px 16px 100px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 16 }}>Log Flare</h1>
+    <div style={{ padding: '16px 20px 100px' }}>
+      <button onClick={onBack} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 14, fontWeight: 500, color: 'var(--primary)',
+        padding: '4px 0', marginBottom: 12,
+      }}>
+        {'\u2190'} Log flare
+      </button>
+
       <form onSubmit={handleSubmit}>
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          Severity: <strong>{severity}</strong> / 10
-        </label>
-        <input
-          type="range"
-          min={1}
-          max={10}
-          value={severity}
-          onChange={e => setSeverity(Number(e.target.value))}
-          style={{ width: '100%', marginBottom: 16 }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: -12, marginBottom: 16, fontSize: 12, color: '#666' }}>
-          <span>Mild (1)</span>
-          <span>Severe (10)</span>
+        <div style={{
+          background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+          borderRadius: 14, padding: 14, marginBottom: 12,
+        }}>
+          <label style={{
+            display: 'block', fontSize: 11, fontWeight: 500,
+            letterSpacing: '0.05em', textTransform: 'uppercase',
+            color: 'var(--text-secondary)', marginBottom: 8,
+          }}>
+            Severity: {severity} / 10
+          </label>
+          <input
+            type="range"
+            min={1}
+            max={10}
+            value={severity}
+            onChange={e => setSeverity(Number(e.target.value))}
+            style={{ width: '100%', marginBottom: 4 }}
+          />
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            fontSize: 11, color: 'var(--text-hint)',
+          }}>
+            <span>Mild (1)</span>
+            <span>Severe (10)</span>
+          </div>
         </div>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="Optional notes (location, possible triggers…)"
-          rows={4}
-          style={{
-            width: '100%', padding: 12, fontSize: 16,
-            border: '1px solid #ccc', borderRadius: 8,
-            resize: 'vertical', fontFamily: 'inherit',
-          }}
-        />
-        {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
+
+        <div style={{
+          background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+          borderRadius: 14, padding: 14, marginBottom: 12,
+        }}>
+          <label style={{
+            display: 'block', fontSize: 11, fontWeight: 500,
+            letterSpacing: '0.05em', textTransform: 'uppercase',
+            color: 'var(--text-secondary)', marginBottom: 6,
+          }}>
+            Notes (optional)
+          </label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Location, possible triggers\u2026"
+            rows={3}
+            style={{
+              width: '100%', padding: 0, fontSize: 15,
+              border: 'none', background: 'transparent',
+              resize: 'vertical', fontFamily: 'inherit',
+              color: 'var(--text-primary)', outline: 'none',
+              lineHeight: 1.5,
+            }}
+          />
+        </div>
+
+        {error && <p style={{ color: 'var(--type-flare)', marginBottom: 8, fontSize: 13 }}>{error}</p>}
+
         <button
           type="submit"
           disabled={submitting}
           style={{
-            marginTop: 12, width: '100%', padding: '12px 0',
-            fontSize: 16, fontWeight: 600, borderRadius: 8,
-            border: 'none', background: '#dc2626', color: '#fff',
+            width: '100%', padding: '12px 0',
+            fontSize: 15, fontWeight: 500, borderRadius: 14,
+            border: 'none', background: 'var(--primary)', color: '#FDF8F3',
             cursor: submitting ? 'not-allowed' : 'pointer',
             opacity: submitting ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Saving…' : 'Log Flare'}
+          {submitting ? 'Saving\u2026' : 'Log Flare'}
         </button>
       </form>
       <Toast message="Flare logged!" visible={toast} onDone={() => setToast(false)} />

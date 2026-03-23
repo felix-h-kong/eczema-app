@@ -20,7 +20,9 @@ export function Toast({ message, visible, onDone, duration = 2000 }: ToastProps)
   return (
     <div style={{
       position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-      background: '#333', color: '#fff', padding: '12px 24px', borderRadius: 8,
+      background: 'var(--bg-surface)', color: 'var(--text-primary)',
+      border: '0.5px solid var(--border)',
+      padding: '12px 24px', borderRadius: 14,
       zIndex: 1000, fontSize: 14,
     }}>
       {message}
