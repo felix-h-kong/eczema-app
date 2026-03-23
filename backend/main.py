@@ -2,7 +2,7 @@ import json
 from enum import Enum
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -58,7 +58,7 @@ class PushSubscribeRequest(BaseModel):
 
 
 @app.post("/api/log", status_code=201)
-def create_log_entry(entry: LogEntryCreate, db: Database = Depends(get_db)):
+def create_log_entry(entry: LogEntryCreate, background_tasks: BackgroundTasks, db: Database = Depends(get_db)):
     entry_id = db.insert_log_entry(
         timestamp=entry.timestamp,
         entry_type=entry.type.value,
@@ -68,6 +68,9 @@ def create_log_entry(entry: LogEntryCreate, db: Database = Depends(get_db)):
         medication_dose=entry.medication_dose,
         notes=entry.notes,
     )
+    if entry.type == EntryType.meal and entry.raw_input:
+        from parsing import process_pending_entry
+        background_tasks.add_task(process_pending_entry, db, entry_id)
     return {"id": entry_id}
 
 
