@@ -1,5 +1,7 @@
 import json
+import uuid
 from enum import Enum
+from threading import Thread
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query
@@ -12,6 +14,7 @@ from db import Database
 app = FastAPI()
 
 _db: Optional[Database] = None
+_analysis_jobs: dict[str, dict] = {}
 
 
 def get_db() -> Database:
@@ -134,6 +137,65 @@ def push_subscribe(req: PushSubscribeRequest, db: Database = Depends(get_db)):
         keys_json=json.dumps(req.keys),
     )
     return {"ok": True}
+
+
+class AnalyseRequest(BaseModel):
+    use_likely: bool = False
+
+
+@app.post("/api/analyse")
+def start_analysis(req: AnalyseRequest, db: Database = Depends(get_db)):
+    job_id = str(uuid.uuid4())
+    _analysis_jobs[job_id] = {"status": "running"}
+
+    def run_analysis():
+        try:
+            from analysis import compute_correlation
+            result = compute_correlation(db, use_likely=req.use_likely)
+            # Sanitize non-finite floats so the result is JSON-serializable
+            import math
+            for row in result.get("stats", []):
+                if isinstance(row.get("lift"), float) and not math.isfinite(row["lift"]):
+                    row["lift"] = None
+            summary = _get_analysis_summary(result)
+            result["summary"] = summary
+            result["status"] = "complete"
+            _analysis_jobs[job_id] = result
+        except Exception as e:
+            _analysis_jobs[job_id] = {"status": "failed", "error": str(e)}
+
+    Thread(target=run_analysis, daemon=True).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/analyse/{job_id}")
+def get_analysis(job_id: str):
+    if job_id not in _analysis_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _analysis_jobs[job_id]
+
+
+def _get_analysis_summary(result: dict) -> str:
+    """Get Claude summary. Falls back on error."""
+    try:
+        from parsing import get_client
+        from prompts import ANALYSIS_SUMMARY_PROMPT
+        from config import CLAUDE_MODEL
+
+        stats_table = json.dumps(result["stats"], indent=2)
+        warnings = result.get("warning", "")
+
+        response = get_client().messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=512,
+            messages=[{
+                "role": "user",
+                "content": ANALYSIS_SUMMARY_PROMPT.format(stats_table=stats_table, warnings=warnings),
+            }],
+        )
+        return response.content[0].text
+    except Exception as e:
+        return f"(Summary unavailable: {e})"
 
 
 # Serve static files (built frontend) — must be last
