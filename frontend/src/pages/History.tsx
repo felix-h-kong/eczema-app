@@ -28,11 +28,19 @@ function groupByDay(entries: LogEntry[]): Record<string, LogEntry[]> {
 }
 
 interface EditState {
+  timestamp?: string;
   raw_input?: string;
   severity?: number;
   medication_name?: string;
   medication_dose?: string;
   notes?: string;
+}
+
+function toLocalDatetime(iso: string): string {
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 function EditForm({ entry, onSave, onCancel }: {
@@ -41,10 +49,18 @@ function EditForm({ entry, onSave, onCancel }: {
   onCancel: () => void;
 }) {
   const [fields, setFields] = useState<EditState>(() => {
-    if (entry.type === 'meal') return { raw_input: entry.raw_input || '' };
-    if (entry.type === 'flare') return { severity: entry.severity ?? 5, notes: entry.notes || '' };
-    return { medication_name: entry.medication_name || '', medication_dose: entry.medication_dose || '' };
+    const base = { timestamp: toLocalDatetime(entry.timestamp) };
+    if (entry.type === 'meal') return { ...base, raw_input: entry.raw_input || '', notes: entry.notes || '' };
+    if (entry.type === 'flare') return { ...base, severity: entry.severity ?? 5, notes: entry.notes || '' };
+    if (entry.type === 'note') return { ...base, notes: entry.notes || '' };
+    return { ...base, medication_name: entry.medication_name || '', medication_dose: entry.medication_dose || '', notes: entry.notes || '' };
   });
+
+  const labelStyle = {
+    fontSize: 11, fontWeight: 500 as const, letterSpacing: '0.05em',
+    textTransform: 'uppercase' as const, color: 'var(--text-secondary)',
+    display: 'block', marginBottom: 4,
+  };
 
   const inputStyle = {
     width: '100%', padding: '8px 10px', fontSize: 14,
@@ -53,20 +69,41 @@ function EditForm({ entry, onSave, onCancel }: {
     fontFamily: 'inherit', outline: 'none',
   } as const;
 
+  function handleSave() {
+    const out: EditState = { ...fields };
+    // Convert local datetime back to ISO
+    if (out.timestamp) {
+      out.timestamp = new Date(out.timestamp).toISOString();
+    }
+    onSave(out);
+  }
+
   return (
     <div style={{ marginTop: 8 }}>
+      {/* Time — always shown */}
+      <label style={{ ...labelStyle, marginTop: 0 }}>Time</label>
+      <input
+        type="datetime-local"
+        value={fields.timestamp}
+        onChange={e => setFields({ ...fields, timestamp: e.target.value })}
+        style={{ ...inputStyle, marginBottom: 8 }}
+      />
+
       {entry.type === 'meal' && (
-        <textarea
-          autoFocus
-          value={fields.raw_input}
-          onChange={e => setFields({ ...fields, raw_input: e.target.value })}
-          rows={3}
-          style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4 }}
-        />
+        <>
+          <label style={labelStyle}>What you ate</label>
+          <textarea
+            autoFocus
+            value={fields.raw_input}
+            onChange={e => setFields({ ...fields, raw_input: e.target.value })}
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4, marginBottom: 8 }}
+          />
+        </>
       )}
       {entry.type === 'flare' && (
         <>
-          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+          <label style={labelStyle}>
             Severity: {fields.severity} / 10
           </label>
           <input
@@ -74,17 +111,11 @@ function EditForm({ entry, onSave, onCancel }: {
             onChange={e => setFields({ ...fields, severity: Number(e.target.value) })}
             style={{ width: '100%', marginBottom: 8 }}
           />
-          <textarea
-            value={fields.notes}
-            onChange={e => setFields({ ...fields, notes: e.target.value })}
-            placeholder="Notes"
-            rows={2}
-            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4 }}
-          />
         </>
       )}
       {entry.type === 'medication' && (
         <>
+          <label style={labelStyle}>Medication</label>
           <input
             autoFocus
             type="text"
@@ -93,17 +124,29 @@ function EditForm({ entry, onSave, onCancel }: {
             placeholder="Medication name"
             style={{ ...inputStyle, marginBottom: 6 }}
           />
+          <label style={labelStyle}>Dose</label>
           <input
             type="text"
             value={fields.medication_dose}
             onChange={e => setFields({ ...fields, medication_dose: e.target.value })}
             placeholder="Dose"
-            style={inputStyle}
+            style={{ ...inputStyle, marginBottom: 8 }}
           />
         </>
       )}
+
+      {/* Notes — shown for all types */}
+      <label style={labelStyle}>Notes</label>
+      <textarea
+        value={fields.notes}
+        onChange={e => setFields({ ...fields, notes: e.target.value })}
+        placeholder="Notes"
+        rows={2}
+        style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4 }}
+      />
+
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button onClick={() => onSave(fields)} style={{
+        <button onClick={handleSave} style={{
           padding: '6px 14px', fontSize: 13, fontWeight: 500, borderRadius: 10,
           border: 'none', background: 'var(--primary)', color: '#FDF8F3', cursor: 'pointer',
         }}>

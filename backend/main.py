@@ -51,6 +51,7 @@ class LogEntryCreate(BaseModel):
 
 
 class LogEntryUpdate(BaseModel):
+    timestamp: Optional[str] = None
     raw_input: Optional[str] = None
     severity: Optional[int] = None
     medication_name: Optional[str] = None
