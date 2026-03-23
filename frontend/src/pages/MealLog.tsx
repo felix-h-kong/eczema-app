@@ -17,7 +17,7 @@ function SkinCheck({ onDone }: { onDone: () => void }) {
         timestamp: new Date().toISOString(),
         type: 'flare',
         severity,
-        notes: 'Skin check-in (with meal)',
+        notes: 'skin-checkin:pre-meal',
       });
     } catch {
       // Non-critical, don't block
@@ -37,7 +37,7 @@ function SkinCheck({ onDone }: { onDone: () => void }) {
         Quick skin check
       </div>
       <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 12 }}>
-        How's your skin right now? <strong>{severity}</strong> / 10
+        How is your skin just before your meal? <strong>{severity}</strong> / 10
       </div>
       <input
         type="range" min={1} max={10} value={severity}
