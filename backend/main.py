@@ -198,6 +198,13 @@ def _get_analysis_summary(result: dict) -> str:
         return f"(Summary unavailable: {e})"
 
 
+@app.on_event("startup")
+def startup():
+    db = get_db()
+    from notifications import setup_scheduler
+    setup_scheduler(db)
+
+
 # Serve static files (built frontend) — must be last
 if STATIC_DIR.exists():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
