@@ -9,11 +9,12 @@ from typing import Optional
 import httpx
 from dotenv import load_dotenv
 
-from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from config import DB_PATH, STATIC_DIR
+from config import DB_PATH, IMAGES_DIR, STATIC_DIR
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 from db import Database
@@ -218,6 +219,39 @@ def get_vapid_key():
     if not key:
         raise HTTPException(status_code=500, detail="VAPID public key not configured")
     return {"public_key": key}
+
+
+@app.post("/api/log/{entry_id}/image", status_code=201)
+async def upload_image(
+    entry_id: int,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Database = Depends(get_db),
+):
+    existing = db.get_log_entry(entry_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename or "image.jpg").suffix or ".jpg"
+    filename = f"{entry_id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = IMAGES_DIR / filename
+    content = await file.read()
+    filepath.write_bytes(content)
+    timestamp = existing["timestamp"]
+    image_id = db.add_image(entry_id, str(filepath), timestamp)
+    # If it's a meal entry, parse ingredients from image
+    if existing["type"] == "meal":
+        from parsing import process_image_entry
+        background_tasks.add_task(process_image_entry, db, entry_id, str(filepath))
+    return {"id": image_id, "path": f"/api/images/{filename}"}
+
+
+@app.get("/api/images/{filename}")
+def serve_image(filename: str):
+    filepath = IMAGES_DIR / filename
+    if not filepath.exists() or not filepath.resolve().parent == IMAGES_DIR.resolve():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(filepath)
 
 
 @app.post("/api/barcode/{upc}")

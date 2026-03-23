@@ -96,6 +96,17 @@ export async function subscribePush(subscription: PushSubscription): Promise<voi
   if (!resp.ok) throw new Error(`Failed to subscribe: ${resp.status}`);
 }
 
+export async function uploadImage(entryId: number, file: File): Promise<{ id: number; path: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  const resp = await fetch(`${API_BASE}/log/${entryId}/image`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!resp.ok) throw new Error(`Failed to upload image: ${resp.status}`);
+  return resp.json();
+}
+
 export async function lookupBarcode(upc: string): Promise<{ ingredients: string }> {
   const resp = await fetch(`${API_BASE}/barcode/${upc}`, { method: 'POST' });
   if (!resp.ok) throw new Error(`Barcode lookup failed: ${resp.status}`);

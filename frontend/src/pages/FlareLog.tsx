@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { createLogEntry } from '../api';
+import { useState, useRef } from 'react';
+import { createLogEntry, uploadImage } from '../api';
 import { Toast } from '../components/Toast';
 
 interface FlareLogProps {
@@ -10,24 +10,31 @@ export function FlareLog({ onBack }: FlareLogProps) {
   const [severity, setSeverity] = useState(5);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState(false);
+  const [toast, setToast] = useState('');
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError('');
     try {
-      await createLogEntry({
+      const { id } = await createLogEntry({
         timestamp: customTime ? new Date(customTime).toISOString() : new Date().toISOString(),
         type: 'flare',
         severity,
         notes: notes.trim() || undefined,
       });
+      for (const photo of photos) {
+        await uploadImage(id, photo);
+      }
       setSeverity(5);
       setNotes('');
-      setToast(true);
+      setPhotos([]);
+      setToast(photos.length > 0 ? 'Flare logged with photo!' : 'Flare logged!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -100,7 +107,73 @@ export function FlareLog({ onBack }: FlareLogProps) {
           />
         </div>
 
+        {/* Photo thumbnails */}
+        {photos.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            {photos.map((photo, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                <img
+                  src={URL.createObjectURL(photo)}
+                  alt={`Photo ${i + 1}`}
+                  style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 10, border: '0.5px solid var(--border)' }}
+                />
+                <button type="button" onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))} style={{
+                  position: 'absolute', top: -6, right: -6,
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: 'var(--type-flare)', color: '#fff',
+                  border: 'none', fontSize: 12, lineHeight: '20px',
+                  cursor: 'pointer', padding: 0,
+                }}>
+                  {'\u00D7'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={e => {
+            const files = e.target.files;
+            if (files && files.length > 0) setPhotos(prev => [...prev, ...Array.from(files)]);
+            e.target.value = '';
+          }}
+          style={{ display: 'none' }}
+        />
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          onChange={e => {
+            const files = e.target.files;
+            if (files && files.length > 0) setPhotos(prev => [...prev, ...Array.from(files)]);
+            e.target.value = '';
+          }}
+          style={{ display: 'none' }}
+        />
+
         <div style={{ display: 'flex', gap: 8, marginBottom: customTime !== null ? 8 : 16 }}>
+          <button type="button" onClick={() => cameraRef.current?.click()} style={{
+            background: photos.length > 0 ? 'var(--primary-light)' : 'var(--bg-surface-2)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
+            color: photos.length > 0 ? 'var(--primary)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}>
+            Camera{photos.length > 0 ? ` (${photos.length})` : ''}
+          </button>
+          <button type="button" onClick={() => galleryRef.current?.click()} style={{
+            background: 'var(--bg-surface-2)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}>
+            Gallery
+          </button>
           <button type="button" onClick={() => setCustomTime(customTime !== null ? null : '')} style={{
             background: customTime !== null ? 'var(--primary-light)' : 'var(--bg-surface-2)',
             border: '0.5px solid var(--border)',
@@ -143,7 +216,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
           {submitting ? 'Saving\u2026' : 'Log Flare'}
         </button>
       </form>
-      <Toast message="Flare logged!" visible={toast} onDone={() => setToast(false)} />
+      <Toast message={toast} visible={!!toast} onDone={() => setToast('')} />
     </div>
   );
 }

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#D06040"/>
+  <g transform="translate(256,240)">
+    <!-- Stylised leaf / skin-care motif -->
+    <ellipse cx="0" cy="0" rx="90" ry="130" fill="#FDF8F3" opacity="0.9" transform="rotate(-15)"/>
+    <ellipse cx="0" cy="0" rx="90" ry="130" fill="#F0C4B0" opacity="0.5" transform="rotate(15)"/>
+    <!-- Centre vein -->
+    <line x1="0" y1="-100" x2="0" y2="100" stroke="#D06040" stroke-width="6" stroke-linecap="round"/>
+    <line x1="0" y1="-40" x2="-30" y2="-70" stroke="#D06040" stroke-width="4" stroke-linecap="round"/>
+    <line x1="0" y1="-40" x2="30" y2="-70" stroke="#D06040" stroke-width="4" stroke-linecap="round"/>
+    <line x1="0" y1="10" x2="-35" y2="-20" stroke="#D06040" stroke-width="4" stroke-linecap="round"/>
+    <line x1="0" y1="10" x2="35" y2="-20" stroke="#D06040" stroke-width="4" stroke-linecap="round"/>
+    <line x1="0" y1="60" x2="-28" y2="35" stroke="#D06040" stroke-width="4" stroke-linecap="round"/>
+    <line x1="0" y1="60" x2="28" y2="35" stroke="#D06040" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
