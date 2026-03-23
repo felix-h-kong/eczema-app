@@ -56,8 +56,7 @@ export function EventLog({ onBack }: EventLogProps) {
           <button
             key={preset}
             type="button"
-            disabled={submitting}
-            onClick={() => handleSubmit(preset)}
+            onClick={() => setText(preset)}
             style={{
               background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
               borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
