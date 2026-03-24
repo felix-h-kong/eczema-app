@@ -1,4 +1,4 @@
-TEXT_PARSING_PROMPT = """Extract the food ingredients from this meal description. Return a JSON object with:
+TEXT_PARSING_PROMPT = """Extract the food ingredients from this food description. Return a JSON object with:
 - "confirmed": ingredients explicitly mentioned
 - "likely": ingredients that are commonly part of the described dishes but not explicitly stated
 - "source": "text"
@@ -7,9 +7,9 @@ Be specific about individual ingredients. For example, "stir fry with rice" shou
 
 Return ONLY valid JSON, no other text.
 
-Meal description: {meal_text}"""
+Food description: {meal_text}"""
 
-IMAGE_PARSING_PROMPT = """Look at this meal photo and identify the food ingredients. Return a JSON object with:
+IMAGE_PARSING_PROMPT = """Look at this food photo and identify the food ingredients. Return a JSON object with:
 - "confirmed": ingredients you can clearly identify
 - "likely": ingredients that are probably present but not clearly visible
 - "source": "image"
@@ -23,7 +23,7 @@ Here are the statistical results:
 {stats_table}
 
 Key metrics:
-- lift: how much more frequently an ingredient appears before flares vs. normal meals (>1.0 = more common before flares)
+- lift: how much more frequently an ingredient appears before elevated skin states vs. normal meals (>1.0 = more common before flares)
 - flare_appearances: number of distinct flare events this ingredient preceded
 - confounded_flares: flare events where medication was also taken (±12h), which may mask the true trigger
 

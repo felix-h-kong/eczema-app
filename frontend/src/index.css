@@ -55,3 +55,11 @@ body {
   font-size: 15px;
   line-height: 1.5;
 }
+
+.analysis-summary h1 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+.analysis-summary h2 { font-size: 14px; font-weight: 600; margin: 12px 0 6px; color: var(--text-secondary); }
+.analysis-summary h3 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+.analysis-summary p { margin: 0 0 8px; }
+.analysis-summary ul, .analysis-summary ol { margin: 0 0 8px; padding-left: 20px; }
+.analysis-summary li { margin-bottom: 4px; }
+.analysis-summary strong { color: var(--primary); }

@@ -34,7 +34,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
       setSeverity(5);
       setNotes('');
       setPhotos([]);
-      setToast(photos.length > 0 ? 'Flare logged with photo!' : 'Flare logged!');
+      setToast(photos.length > 0 ? 'Skin check logged with photo!' : 'Skin check logged!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -49,7 +49,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
         fontSize: 14, fontWeight: 500, color: 'var(--primary)',
         padding: '4px 0', marginBottom: 12,
       }}>
-        {'\u2190'} Log flare
+        {'\u2190'} Skin check
       </button>
 
       <form onSubmit={handleSubmit}>
@@ -213,7 +213,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
             opacity: submitting ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Saving\u2026' : 'Log Flare'}
+          {submitting ? 'Saving\u2026' : 'Log Skin Check'}
         </button>
       </form>
       <Toast message={toast} visible={!!toast} onDone={() => setToast('')} />

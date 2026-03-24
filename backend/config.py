@@ -19,6 +19,7 @@ NOTIFICATION_SKIP_WINDOW_HOURS = 2
 
 # Analysis
 FLARE_WINDOW_HOURS = (6, 48)  # meals 6-48h before flare
+FLARE_SEVERITY_THRESHOLD = 7  # skin check-ins with severity >= this count as flares
 MEDICATION_CONFOUND_HOURS = 12
 MIN_FLARE_APPEARANCES = 2
 LOW_FLARE_WARNING_THRESHOLD = 10

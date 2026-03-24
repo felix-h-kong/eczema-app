@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { marked } from 'marked';
+
+marked.setOptions({ async: false });
 import { startAnalysis, getAnalysisResult, getLogEntries } from '../api';
 import type { AnalysisResult } from '../api';
 
@@ -28,11 +31,11 @@ export function Analysis() {
       await new Promise(r => setTimeout(r, 2000));
       try {
         const res = await getAnalysisResult(jobId);
-        if (res.status === 'done') {
+        if (res.status === 'complete') {
           setState({ phase: 'done', result: res });
           return;
         }
-        if (res.status === 'error') {
+        if (res.status === 'failed') {
           setState({ phase: 'error', message: 'Analysis job failed on server.' });
           return;
         }
@@ -57,7 +60,7 @@ export function Analysis() {
 
   const isRunning = state.phase === 'running';
   const maxLift = state.phase === 'done' && state.result.stats.length > 0
-    ? Math.max(...state.result.stats.map(s => s.lift))
+    ? Math.max(...state.result.stats.filter(s => s.lift != null).map(s => s.lift), 1)
     : 1;
 
   return (
@@ -66,7 +69,7 @@ export function Analysis() {
         fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
         textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4,
       }}>
-        {flareCount} flare{flareCount !== 1 ? 's' : ''} in 30 days
+        {flareCount} skin check{flareCount !== 1 ? 's' : ''} in 30 days
       </div>
       <h1 style={{ fontSize: 24, fontWeight: 500, marginBottom: 16, color: 'var(--text-primary)' }}>Analyse</h1>
 
@@ -153,7 +156,7 @@ export function Analysis() {
                       {row.ingredient}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      {row.lift.toFixed(1)}x lift
+                      {row.lift != null ? `${row.lift.toFixed(1)}x lift` : 'only before flares'}
                     </span>
                   </div>
                   <div style={{
@@ -163,8 +166,8 @@ export function Analysis() {
                   }}>
                     <div style={{
                       height: '100%', borderRadius: 3,
-                      background: row.lift > 1.5 ? 'var(--type-flare)' : 'var(--primary)',
-                      width: `${Math.min((row.lift / maxLift) * 100, 100)}%`,
+                      background: (row.lift ?? Infinity) > 1.5 ? 'var(--type-flare)' : 'var(--primary)',
+                      width: row.lift != null ? `${Math.min((row.lift / maxLift) * 100, 100)}%` : '100%',
                     }} />
                   </div>
                 </div>
@@ -188,14 +191,10 @@ export function Analysis() {
               borderRadius: 14, padding: 14,
               fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)',
             }}>
-              <div style={{
-                fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
-                textTransform: 'uppercase', color: 'var(--text-secondary)',
-                marginBottom: 6,
-              }}>
-                Summary
-              </div>
-              {state.result.summary}
+              <div
+                className="analysis-summary"
+                dangerouslySetInnerHTML={{ __html: marked.parse(state.result.summary) as string }}
+              />
             </div>
           )}
         </>

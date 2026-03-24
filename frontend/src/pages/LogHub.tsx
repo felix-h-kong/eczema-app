@@ -50,7 +50,7 @@ export function LogHub({ onSelect }: LogHubProps) {
             fontSize: 18, flexShrink: 0,
           }}>{'\u{1F37D}'}</div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: '#FDF8F3' }}>Log meal</div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: '#FDF8F3' }}>Log food</div>
             <div style={{ fontSize: 12, color: 'var(--primary-light)' }}>Breakfast · Lunch · Dinner · Snack</div>
           </div>
         </button>
@@ -68,7 +68,7 @@ export function LogHub({ onSelect }: LogHubProps) {
             fontSize: 18, flexShrink: 0,
           }}>{'\u{1F534}'}</div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>Log flare</div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>Skin check</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Rate severity · Add photos</div>
           </div>
         </button>
@@ -131,10 +131,10 @@ export function LogHub({ onSelect }: LogHubProps) {
                 : entry.type === 'flare' ? 'var(--type-flare)'
                 : entry.type === 'note' ? 'var(--text-secondary)'
                 : 'var(--type-med)';
-              const label = entry.type === 'flare' ? `Flare \u00B7 severity ${entry.severity}`
+              const label = entry.type === 'flare' ? `Skin \u00B7 ${entry.severity}/10`
                 : entry.type === 'medication' ? entry.medication_name || 'Medication'
                 : entry.type === 'note' ? 'Event'
-                : 'Meal';
+                : 'Food';
               const body = entry.raw_input || entry.notes || '';
               return (
                 <div key={entry.id} style={{

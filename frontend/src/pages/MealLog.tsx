@@ -39,7 +39,7 @@ function SkinCheck({ onDone }: { onDone: () => void }) {
         Quick skin check
       </div>
       <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 12 }}>
-        How is your skin just before your meal? <strong>{severity}</strong> / 10
+        How is your skin right now? <strong>{severity}</strong> / 10
       </div>
       <input
         type="range" min={1} max={10} value={severity}
@@ -100,7 +100,7 @@ function RecentMeals({ onSelect }: { onSelect: (text: string) => void }) {
         fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
         textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6,
       }}>
-        Recent meals
+        Recent food
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {meals.map(m => (
@@ -159,7 +159,7 @@ export function MealLog({ onBack }: MealLogProps) {
       setText('');
       setPhotos([]);
       setBarcodeIngredients(null);
-      setToast(photos.length > 0 ? 'Meal logged with photo!' : 'Meal logged!');
+      setToast(photos.length > 0 ? 'Food logged with photo!' : 'Food logged!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -214,7 +214,7 @@ export function MealLog({ onBack }: MealLogProps) {
         fontSize: 14, fontWeight: 500, color: 'var(--primary)',
         padding: '4px 0', marginBottom: 12,
       }}>
-        {'\u2190'} Log meal
+        {'\u2190'} Log food
       </button>
 
       {/* Skin check — shown once per visit until answered */}
@@ -372,7 +372,7 @@ export function MealLog({ onBack }: MealLogProps) {
             opacity: submitting || (!text.trim() && photos.length === 0) ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Saving\u2026' : 'Log Meal'}
+          {submitting ? 'Saving\u2026' : 'Log Food'}
         </button>
       </form>
       {barcodeLoading && (

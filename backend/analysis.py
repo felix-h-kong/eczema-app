@@ -1,16 +1,17 @@
 """
-Correlation algorithm: identifies food ingredients that correlate with eczema flares.
+Correlation algorithm: identifies food ingredients that correlate with elevated skin states.
 
 Algorithm:
 1. Resolve all ingredient names through ingredient_aliases table
-2. For each flare event, define pre-flare window: meals in 6-48h before the flare
-3. Collect ingredients from meals in flare windows → flare ingredient set
-4. Collect ingredients from meals outside any flare window → baseline ingredient set
-5. Per ingredient, compute: flare_freq, baseline_freq, lift, flare_appearances
-6. Flag confounded flare events: medication within ±12h of flare
-7. Filter to ingredients with >= MIN_FLARE_APPEARANCES flare appearances
-8. Sort by lift descending
-9. Return structured results
+2. Collect all skin check entries (explicit + meal-associated) with severity >= threshold
+3. For each elevated event, define pre-flare window: food logs in 6-48h before
+4. Collect ingredients from food in flare windows → flare ingredient set
+5. Collect ingredients from food outside any flare window → baseline ingredient set
+6. Per ingredient, compute: flare_freq, baseline_freq, lift, flare_appearances
+7. Flag confounded events: medication within ±12h
+8. Filter to ingredients with >= MIN_FLARE_APPEARANCES appearances
+9. Sort by lift descending
+10. Return structured results
 """
 
 import json
@@ -19,6 +20,7 @@ from collections import defaultdict
 
 from config import (
     FLARE_WINDOW_HOURS,
+    FLARE_SEVERITY_THRESHOLD,
     MEDICATION_CONFOUND_HOURS,
     MIN_FLARE_APPEARANCES,
     LOW_FLARE_WARNING_THRESHOLD,
@@ -74,7 +76,13 @@ def compute_correlation(db, use_likely: bool = False) -> dict:
         }
     """
     # --- 1. Load all relevant entries ---
-    flares = db.list_log_entries(entry_type="flare")
+    # Use both explicit skin checks and meal-associated check-ins,
+    # filtered to severity >= threshold (elevated skin states)
+    # TODO: Also detect flares from sharp severity increases (e.g. +3 from
+    #       rolling average), not just absolute threshold. A jump from 3→7
+    #       is more significant than a steady 7.
+    all_skin = db.list_log_entries(entry_type="flare")
+    flares = [e for e in all_skin if (e.get("severity") or 0) >= FLARE_SEVERITY_THRESHOLD]
     meals = db.list_log_entries(entry_type="meal")
     medications = db.list_log_entries(entry_type="medication")
 
@@ -83,7 +91,7 @@ def compute_correlation(db, use_likely: bool = False) -> dict:
     warning = None
     if flare_count < LOW_FLARE_WARNING_THRESHOLD:
         warning = (
-            f"Only {flare_count} flare event(s) recorded. "
+            f"Only {flare_count} elevated skin event(s) (severity \u2265 {FLARE_SEVERITY_THRESHOLD}) recorded. "
             f"At least {LOW_FLARE_WARNING_THRESHOLD} are recommended for reliable correlation analysis."
         )
 
