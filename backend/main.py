@@ -93,7 +93,14 @@ def list_logs(
     to_date: Optional[str] = Query(None, alias="to"),
     db: Database = Depends(get_db),
 ):
-    return db.list_log_entries(entry_type=type, from_date=from_date, to_date=to_date)
+    entries = db.list_log_entries(entry_type=type, from_date=from_date, to_date=to_date)
+    for entry in entries:
+        images = db.list_images(entry["id"])
+        if images:
+            entry["images"] = [
+                f"/api/images/{Path(img['image_path']).name}" for img in images
+            ]
+    return entries
 
 
 @app.put("/api/log/{entry_id}")

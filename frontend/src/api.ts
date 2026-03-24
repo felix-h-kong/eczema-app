@@ -11,6 +11,7 @@ export interface LogEntry {
   medication_name?: string;
   medication_dose?: string;
   notes?: string;
+  images?: string[];
 }
 
 export interface CreateLogEntry {

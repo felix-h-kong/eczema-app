@@ -271,6 +271,22 @@ export function History() {
                     </div>
                   )}
 
+                  {entry.images && entry.images.length > 0 && !isEditing && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                      {entry.images.map((src, j) => (
+                        <img
+                          key={j}
+                          src={src}
+                          alt=""
+                          style={{
+                            width: 48, height: 48, objectFit: 'cover',
+                            borderRadius: 8, border: '0.5px solid var(--border)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
                   {isEditing && (
                     <EditForm
                       entry={entry}
