@@ -42,13 +42,22 @@ export function BarcodeScanner({ onDetected, onClose, onManualEntry }: BarcodeSc
       }
 
       if (hasCamera && hasBarcodeDetector) {
-        // Live scanning mode
+        // Live scanning mode — set mode first, wait for React to render the video element
         if (cancelled) return;
         setMode('live');
-        if (videoRef.current) {
-          videoRef.current.srcObject = streamRef.current;
-          await videoRef.current.play();
-        }
+
+        // Wait for the video element to appear in the DOM
+        await new Promise<void>(resolve => {
+          const check = () => {
+            if (videoRef.current || cancelled) resolve();
+            else requestAnimationFrame(check);
+          };
+          check();
+        });
+
+        if (cancelled || !videoRef.current) return;
+        videoRef.current.srcObject = streamRef.current;
+        await videoRef.current.play();
 
         // @ts-ignore
         const detector = new BarcodeDetector({

@@ -91,6 +91,21 @@ function EditForm({ entry, onSave, onCancel }: {
 
       {entry.type === 'meal' && (
         <>
+          {entry.images && entry.images.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+              {entry.images.map((src, j) => (
+                <img
+                  key={j}
+                  src={src}
+                  alt=""
+                  style={{
+                    width: 56, height: 56, objectFit: 'cover',
+                    borderRadius: 8, border: '0.5px solid var(--border)',
+                  }}
+                />
+              ))}
+            </div>
+          )}
           <label style={labelStyle}>What you ate</label>
           <textarea
             autoFocus
@@ -241,46 +256,150 @@ export function History() {
                 : entry.type === 'flare' ? 'var(--type-flare)'
                 : entry.type === 'note' ? 'var(--text-secondary)'
                 : 'var(--type-med)';
-              const label = entry.type === 'flare' ? `Flare \u00B7 severity ${entry.severity}`
-                : entry.type === 'medication' ? entry.medication_name || 'Medication'
-                : entry.type === 'note' ? 'Event'
-                : 'Meal';
-              const body = entry.raw_input || entry.notes || '';
+              const typeIcon = entry.type === 'meal' ? '\u{1F37D}'
+                : entry.type === 'flare' ? '\u{1F534}'
+                : entry.type === 'note' ? '\u{1F4CB}'
+                : '\u{1F48A}';
+              const bodyText = entry.type === 'flare'
+                ? `Severity ${entry.severity}/10`
+                : entry.type === 'medication'
+                ? `${entry.medication_name || 'Medication'}${entry.medication_dose ? ` ${entry.medication_dose}` : ''}`
+                : entry.raw_input || entry.notes || '';
+              const secondaryText = entry.type === 'flare' ? (entry.notes || '') : '';
               const isExpanded = expandedId === entry.id;
               const isEditing = editingId === entry.id;
               const isConfirmingDelete = confirmDeleteId === entry.id;
 
+              // Parse ingredients for summary/expanded view
+              let confirmed: string[] = [];
+              let likely: string[] = [];
+              if (entry.parsed_ingredients) {
+                try {
+                  const parsed = JSON.parse(entry.parsed_ingredients);
+                  confirmed = parsed.confirmed || [];
+                  likely = parsed.likely || [];
+                } catch { /* ignore */ }
+              }
+              const hasIngredients = confirmed.length > 0 || likely.length > 0;
+
+              // Collapsed: show first image thumbnail on the right
+              const hasImages = entry.images && entry.images.length > 0;
+
               return (
                 <div key={entry.id} style={{
-                  padding: '11px 14px',
+                  padding: '13px 16px',
                   borderTop: i > 0 ? '0.5px solid var(--border)' : 'none',
+                  borderLeft: `3px solid ${typeColor}`,
                   cursor: isEditing ? 'default' : 'pointer',
+                  background: entry.type === 'flare' ? 'rgba(232, 96, 72, 0.08)' : undefined,
                 }} onClick={() => {
                   if (isEditing) return;
                   setExpandedId(isExpanded ? null : entry.id);
                   setConfirmDeleteId(null);
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: typeColor }}>{label}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-hint)' }}>{formatTime(entry.timestamp)}</span>
+                  {/* Main row: icon + body + time/thumb */}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    {/* Type icon */}
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 7,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, flexShrink: 0, marginTop: 1,
+                    }}>
+                      {typeIcon}
+                    </div>
+
+                    {/* Body column */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {bodyText && !isEditing && (
+                        <div style={{
+                          fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.4,
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                          ...(isExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }),
+                        }}>
+                          {bodyText}
+                        </div>
+                      )}
+                      {secondaryText && !isEditing && (
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: 2 }}>
+                          {secondaryText}
+                        </div>
+                      )}
+
+                      {/* Ingredient summary (collapsed) */}
+                      {hasIngredients && !isExpanded && !isEditing && (
+                        <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 3 }}>
+                          {confirmed.length > 0 && `${confirmed.length} ingredient${confirmed.length !== 1 ? 's' : ''}`}
+                          {confirmed.length > 0 && likely.length > 0 && ' \u00B7 '}
+                          {likely.length > 0 && `+${likely.length} likely`}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right column: time + optional thumbnail */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-hint)', whiteSpace: 'nowrap' }}>
+                        {formatTime(entry.timestamp)}
+                      </span>
+                      {hasImages && !isExpanded && !isEditing && (
+                        <div style={{ position: 'relative' }}>
+                          <img
+                            src={entry.images![0]}
+                            alt=""
+                            style={{
+                              width: 32, height: 32, objectFit: 'cover',
+                              borderRadius: 6, border: '0.5px solid var(--border)',
+                            }}
+                          />
+                          {entry.images!.length > 1 && (
+                            <span style={{
+                              position: 'absolute', bottom: -2, right: -2,
+                              background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)',
+                              borderRadius: 4, fontSize: 9, padding: '0 3px',
+                              color: 'var(--text-hint)',
+                            }}>
+                              +{entry.images!.length - 1}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {body && !isEditing && (
-                    <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.4, marginTop: 2 }}>
-                      {body}
+                  {/* Expanded: full ingredients */}
+                  {hasIngredients && isExpanded && !isEditing && (
+                    <div style={{ marginTop: 8, marginLeft: 36 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {confirmed.map((ing, j) => (
+                          <span key={`c-${j}`} style={{
+                            display: 'inline-block', padding: '2px 7px', fontSize: 11,
+                            borderRadius: 6, background: 'var(--bg-surface-2)', color: 'var(--text-primary)',
+                          }}>
+                            {ing}
+                          </span>
+                        ))}
+                        {likely.map((ing, j) => (
+                          <span key={`l-${j}`} style={{
+                            display: 'inline-block', padding: '2px 7px', fontSize: 11,
+                            borderRadius: 6, color: 'var(--text-hint)',
+                          }}>
+                            {ing}?
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {entry.images && entry.images.length > 0 && !isEditing && (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                      {entry.images.map((src, j) => (
+                  {/* Expanded: full image gallery */}
+                  {hasImages && isExpanded && !isEditing && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, marginLeft: 36, flexWrap: 'wrap' }}>
+                      {entry.images!.map((src, j) => (
                         <img
                           key={j}
                           src={src}
                           alt=""
                           style={{
-                            width: 48, height: 48, objectFit: 'cover',
-                            borderRadius: 8, border: '0.5px solid var(--border)',
+                            width: 128, height: 128, objectFit: 'cover',
+                            borderRadius: 10, border: '0.5px solid var(--border)',
                           }}
                         />
                       ))}
@@ -296,7 +415,7 @@ export function History() {
                   )}
 
                   {isExpanded && !isEditing && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, marginLeft: 36 }} onClick={e => e.stopPropagation()}>
                       <button onClick={() => { setEditingId(entry.id); }} style={{
                         padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 8,
                         border: '0.5px solid var(--border)', background: 'var(--bg-surface-2)',

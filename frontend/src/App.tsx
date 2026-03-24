@@ -40,8 +40,14 @@ async function setupPushNotifications() {
 }
 
 function App() {
-  const [tab, setTab] = useState('log');
-  const [logForm, setLogForm] = useState<string | null>(null);
+  const [tab, setTab] = useState(() => sessionStorage.getItem('tab') || 'log');
+  const [logForm, setLogForm] = useState<string | null>(() => sessionStorage.getItem('logForm') || null);
+
+  useEffect(() => { sessionStorage.setItem('tab', tab); }, [tab]);
+  useEffect(() => {
+    if (logForm) sessionStorage.setItem('logForm', logForm);
+    else sessionStorage.removeItem('logForm');
+  }, [logForm]);
 
   useEffect(() => { setupPushNotifications(); }, []);
 

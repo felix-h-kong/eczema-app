@@ -134,6 +134,7 @@ export function MealLog({ onBack }: MealLogProps) {
   const [barcodeMode, setBarcodeMode] = useState<'off' | 'manual' | 'scanning'>('off');
   const [upc, setUpc] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [barcodeIngredients, setBarcodeIngredients] = useState<string | null>(null);
   const [skinCheckDone, setSkinCheckDone] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -149,6 +150,7 @@ export function MealLog({ onBack }: MealLogProps) {
         timestamp: customTime ? new Date(customTime).toISOString() : new Date().toISOString(),
         type: 'meal',
         raw_input: text.trim() || undefined,
+        ...(barcodeIngredients ? { barcode_ingredients: barcodeIngredients } : {}),
       });
       // Upload any attached photos
       for (const photo of photos) {
@@ -156,6 +158,7 @@ export function MealLog({ onBack }: MealLogProps) {
       }
       setText('');
       setPhotos([]);
+      setBarcodeIngredients(null);
       setToast(photos.length > 0 ? 'Meal logged with photo!' : 'Meal logged!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -178,11 +181,12 @@ export function MealLog({ onBack }: MealLogProps) {
     setBarcodeLoading(true);
     setError('');
     try {
-      const { ingredients } = await lookupBarcode(code.trim());
-      setText(prev => prev ? `${prev}\n${ingredients}` : ingredients);
+      const { ingredients, name } = await lookupBarcode(code.trim());
+      setText(prev => prev ? `${prev}\n${name || ingredients}` : (name || ingredients));
+      setBarcodeIngredients(ingredients);
       setBarcodeMode('off');
       setUpc('');
-      setToast('Ingredients added from barcode');
+      setToast(name ? `Found: ${name}` : 'Ingredients added from barcode');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Barcode lookup failed');
     } finally {

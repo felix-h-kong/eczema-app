@@ -22,6 +22,7 @@ export interface CreateLogEntry {
   medication_name?: string;
   medication_dose?: string;
   notes?: string;
+  barcode_ingredients?: string;
 }
 
 export interface AnalysisResult {
@@ -108,7 +109,7 @@ export async function uploadImage(entryId: number, file: File): Promise<{ id: nu
   return resp.json();
 }
 
-export async function lookupBarcode(upc: string): Promise<{ ingredients: string }> {
+export async function lookupBarcode(upc: string): Promise<{ ingredients: string; name: string }> {
   const resp = await fetch(`${API_BASE}/barcode/${upc}`, { method: 'POST' });
   if (!resp.ok) throw new Error(`Barcode lookup failed: ${resp.status}`);
   return resp.json();

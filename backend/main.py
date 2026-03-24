@@ -48,6 +48,7 @@ class LogEntryCreate(BaseModel):
     medication_name: Optional[str] = None
     medication_dose: Optional[str] = None
     notes: Optional[str] = None
+    barcode_ingredients: Optional[str] = None
 
 
 class LogEntryUpdate(BaseModel):
@@ -80,7 +81,12 @@ def create_log_entry(entry: LogEntryCreate, background_tasks: BackgroundTasks, d
         medication_dose=entry.medication_dose,
         notes=entry.notes,
     )
-    if entry.type == EntryType.meal and entry.raw_input:
+    if entry.barcode_ingredients:
+        # Barcode gave us exact ingredients — store directly, skip Claude parsing
+        ingredients = [i.strip() for i in entry.barcode_ingredients.split(",") if i.strip()]
+        parsed = json.dumps({"confirmed": ingredients, "likely": [], "source": "barcode"})
+        db.update_parse_result(entry_id, status="parsed", ingredients=parsed)
+    elif entry.type == EntryType.meal and entry.raw_input:
         from parsing import process_pending_entry
         background_tasks.add_task(process_pending_entry, db, entry_id)
     return {"id": entry_id}
