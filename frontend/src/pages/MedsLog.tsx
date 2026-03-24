@@ -1,9 +1,60 @@
-import { useState, useRef } from 'react';
-import { createLogEntry } from '../api';
+import { useState, useRef, useEffect } from 'react';
+import { createLogEntry, getLogEntries } from '../api';
+import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
 
 interface MedsLogProps {
   onBack: () => void;
+}
+
+function RecentMeds({ onSelect }: { onSelect: (name: string, dose: string) => void }) {
+  const [meds, setMeds] = useState<LogEntry[]>([]);
+
+  useEffect(() => {
+    getLogEntries({ type: 'medication' }).then(entries => {
+      const seen = new Set<string>();
+      const unique: LogEntry[] = [];
+      for (const e of entries) {
+        const key = (e.medication_name || '').trim().toLowerCase();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          unique.push(e);
+          if (unique.length >= 5) break;
+        }
+      }
+      setMeds(unique);
+    }).catch(() => {});
+  }, []);
+
+  if (meds.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6,
+      }}>
+        Recent medications
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {meds.map(m => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onSelect(m.medication_name || '', m.medication_dose || '')}
+            style={{
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+              borderRadius: 10, padding: '6px 10px', fontSize: 13,
+              color: 'var(--text-primary)', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {m.medication_name}{m.medication_dose ? ` (${m.medication_dose})` : ''}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function MedsLog({ onBack }: MedsLogProps) {
@@ -47,6 +98,8 @@ export function MedsLog({ onBack }: MedsLogProps) {
       }}>
         {'\u2190'} Log medication
       </button>
+
+      <RecentMeds onSelect={(n, d) => { setName(n); setDose(d); }} />
 
       <form onSubmit={handleSubmit}>
         <div style={{
