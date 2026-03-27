@@ -109,6 +109,17 @@ export async function uploadImage(entryId: number, file: File): Promise<{ id: nu
   return resp.json();
 }
 
+export async function reparseEntry(id: number): Promise<void> {
+  const resp = await fetch(`${API_BASE}/log/${id}/reparse`, { method: 'POST' });
+  if (!resp.ok) throw new Error(`Failed to reparse: ${resp.status}`);
+}
+
+export async function reparseAllFailed(): Promise<{ entries: number }> {
+  const resp = await fetch(`${API_BASE}/reparse-failed`, { method: 'POST' });
+  if (!resp.ok) throw new Error(`Failed to reparse: ${resp.status}`);
+  return resp.json();
+}
+
 export async function lookupBarcode(upc: string): Promise<{ ingredients: string; name: string }> {
   const resp = await fetch(`${API_BASE}/barcode/${upc}`, { method: 'POST' });
   if (!resp.ok) throw new Error(`Barcode lookup failed: ${resp.status}`);

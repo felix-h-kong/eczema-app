@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getLogEntries, updateLogEntry, deleteLogEntry } from '../api';
+import { getLogEntries, updateLogEntry, deleteLogEntry, reparseEntry, reparseAllFailed } from '../api';
 import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
 
@@ -185,6 +185,8 @@ export function History() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [toast, setToast] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [reparsingId, setReparsingId] = useState<number | null>(null);
+  const [reparsingAll, setReparsingAll] = useState(false);
 
   function loadEntries() {
     const now = new Date();
@@ -205,6 +207,32 @@ export function History() {
       loadEntries();
     } catch {
       setToast('Failed to update');
+    }
+  }
+
+  async function handleReparseAll() {
+    setReparsingAll(true);
+    try {
+      const { entries } = await reparseAllFailed();
+      setToast(entries > 0 ? `Re-parsing ${entries} entries` : 'No failed entries to re-parse');
+      if (entries > 0) setTimeout(loadEntries, 5000);
+    } catch {
+      setToast('Failed to re-parse');
+    } finally {
+      setReparsingAll(false);
+    }
+  }
+
+  async function handleReparse(id: number) {
+    setReparsingId(id);
+    try {
+      await reparseEntry(id);
+      setToast('Re-parsing queued');
+      setTimeout(loadEntries, 3000);
+    } catch {
+      setToast('Failed to re-parse');
+    } finally {
+      setReparsingId(null);
     }
   }
 
@@ -230,7 +258,23 @@ export function History() {
       }}>
         {formatWeekRange()}
       </div>
-      <h1 style={{ fontSize: 24, fontWeight: 500, marginBottom: 16, color: 'var(--text-primary)' }}>History</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>History</h1>
+        {entries.some(e => e.type === 'meal' && !!e.parse_status && e.parse_status !== 'parsed') && (
+          <button
+            disabled={reparsingAll}
+            onClick={handleReparseAll}
+            style={{
+              padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 8,
+              border: '0.5px solid var(--border)', background: 'var(--bg-surface-2)',
+              color: 'var(--text-secondary)', cursor: reparsingAll ? 'default' : 'pointer',
+              opacity: reparsingAll ? 0.5 : 1,
+            }}
+          >
+            {reparsingAll ? 'Re-parsing\u2026' : 'Re-parse failed'}
+          </button>
+        )}
+      </div>
 
       {Object.keys(grouped).length === 0 && (
         <p style={{ color: 'var(--text-hint)', textAlign: 'center', padding: 32, fontSize: 14 }}>
@@ -416,6 +460,20 @@ export function History() {
 
                   {isExpanded && !isEditing && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, marginLeft: 36 }} onClick={e => e.stopPropagation()}>
+                      {entry.type === 'meal' && (
+                        <button
+                          disabled={reparsingId === entry.id}
+                          onClick={() => handleReparse(entry.id)}
+                          style={{
+                            padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 8,
+                            border: '0.5px solid var(--border)', background: 'var(--bg-surface-2)',
+                            color: 'var(--text-secondary)', cursor: reparsingId === entry.id ? 'default' : 'pointer',
+                            opacity: reparsingId === entry.id ? 0.5 : 1,
+                          }}
+                        >
+                          {reparsingId === entry.id ? 'Re-parsing\u2026' : 'Re-parse'}
+                        </button>
+                      )}
                       <button onClick={() => { setEditingId(entry.id); }} style={{
                         padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 8,
                         border: '0.5px solid var(--border)', background: 'var(--bg-surface-2)',

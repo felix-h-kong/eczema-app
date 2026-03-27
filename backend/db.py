@@ -47,7 +47,7 @@ class Database:
                     notes TEXT,
                     medication_name TEXT,
                     medication_dose TEXT,
-                    parse_status TEXT NOT NULL DEFAULT 'pending',
+                    parse_status TEXT DEFAULT 'pending',
                     parsed_ingredients TEXT,
                     synced INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -77,6 +77,33 @@ class Database:
                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
                 );
             """)
+            # Allow parse_status to be NULL (remove NOT NULL constraint if present)
+            # Check current schema and migrate if needed
+            schema = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='log_entries'").fetchone()
+            if schema and 'parse_status TEXT NOT NULL' in schema[0]:
+                conn.executescript("""
+                    PRAGMA foreign_keys=OFF;
+                    ALTER TABLE log_entries RENAME TO _log_entries_old;
+                    CREATE TABLE log_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        raw_input TEXT,
+                        severity INTEGER,
+                        notes TEXT,
+                        medication_name TEXT,
+                        medication_dose TEXT,
+                        parse_status TEXT DEFAULT 'pending',
+                        parsed_ingredients TEXT,
+                        synced INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                    );
+                    INSERT INTO log_entries SELECT * FROM _log_entries_old;
+                    DROP TABLE _log_entries_old;
+                    PRAGMA foreign_keys=ON;
+                """)
+            # One-time cleanup already applied; no longer needed on every startup
             conn.commit()
         finally:
             conn.close()

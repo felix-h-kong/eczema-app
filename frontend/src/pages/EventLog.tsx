@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createLogEntry } from '../api';
 import { Toast } from '../components/Toast';
 
@@ -6,14 +6,17 @@ interface EventLogProps {
   onBack: () => void;
 }
 
-const PRESETS = ['Cut nails', 'Shower', 'Changed sheets', 'Exercise', 'Poor sleep', 'Stressful day'];
-
 export function EventLog({ onBack }: EventLogProps) {
+  const [presets, setPresets] = useState<string[]>([]);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(false);
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/event-presets').then(r => r.json()).then(setPresets).catch(() => {});
+  }, []);
 
   async function handleSubmit(value?: string) {
     const note = (value || text).trim();
@@ -52,7 +55,7 @@ export function EventLog({ onBack }: EventLogProps) {
         Quick log
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        {PRESETS.map(preset => (
+        {presets.map(preset => (
           <button
             key={preset}
             type="button"

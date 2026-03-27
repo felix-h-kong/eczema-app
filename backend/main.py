@@ -14,9 +14,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from config import DB_PATH, IMAGES_DIR, STATIC_DIR
+from config import DATA_DIR, DB_PATH, IMAGES_DIR, STATIC_DIR
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from db import Database
 
 app = FastAPI()
@@ -81,14 +81,16 @@ def create_log_entry(entry: LogEntryCreate, background_tasks: BackgroundTasks, d
         medication_dose=entry.medication_dose,
         notes=entry.notes,
     )
-    if entry.barcode_ingredients:
+    if entry.type != EntryType.meal:
+        db.update_log_entry(entry_id, parse_status=None)
+    elif entry.barcode_ingredients:
         # Barcode gave us exact ingredients — store directly, skip Claude parsing
         ingredients = [i.strip() for i in entry.barcode_ingredients.split(",") if i.strip()]
         parsed = json.dumps({"confirmed": ingredients, "likely": [], "source": "barcode"})
         db.update_parse_result(entry_id, status="parsed", ingredients=parsed)
-    elif entry.type == EntryType.meal and entry.raw_input:
-        from parsing import process_pending_entry
-        background_tasks.add_task(process_pending_entry, db, entry_id)
+    else:
+        # Text-only meal entries skip parsing — only photos and barcodes get parsed
+        db.update_log_entry(entry_id, parse_status=None)
     return {"id": entry_id}
 
 
@@ -280,6 +282,62 @@ def barcode_lookup(upc: str):
     if not ingredients:
         raise HTTPException(status_code=404, detail=f"No ingredients listed for '{name or upc}'. Try entering them manually.")
     return {"ingredients": ingredients, "name": name}
+
+
+@app.post("/api/log/{entry_id}/reparse")
+async def reparse_entry(
+    entry_id: int,
+    background_tasks: BackgroundTasks,
+    db: Database = Depends(get_db),
+):
+    entry = db.get_log_entry(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if entry["type"] != "meal":
+        raise HTTPException(status_code=400, detail="Only food entries can be parsed")
+    images = db.list_images(entry_id)
+    # Re-parse text if present
+    if entry.get("raw_input"):
+        from parsing import process_pending_entry
+        db.update_log_entry(entry_id, parse_status="pending")
+        background_tasks.add_task(process_pending_entry, db, entry_id)
+    # Re-parse images
+    for img in images:
+        from parsing import process_image_entry
+        background_tasks.add_task(process_image_entry, db, entry_id, img["image_path"])
+    return {"status": "queued", "images": len(images), "has_text": bool(entry.get("raw_input"))}
+
+
+@app.post("/api/reparse-failed")
+async def reparse_all_failed(
+    background_tasks: BackgroundTasks,
+    db: Database = Depends(get_db),
+):
+    entries = db.execute(
+        "SELECT id FROM log_entries WHERE type = 'meal' AND parse_status IN ('failed', 'pending')"
+    ).fetchall()
+    count = 0
+    for row in entries:
+        entry_id = row["id"]
+        entry = db.get_log_entry(entry_id)
+        images = db.list_images(entry_id)
+        if entry.get("raw_input"):
+            from parsing import process_pending_entry
+            db.update_log_entry(entry_id, parse_status="pending")
+            background_tasks.add_task(process_pending_entry, db, entry_id)
+        for img in images:
+            from parsing import process_image_entry
+            background_tasks.add_task(process_image_entry, db, entry_id, img["image_path"])
+        count += 1
+    return {"status": "queued", "entries": count}
+
+
+@app.get("/api/event-presets")
+def get_event_presets():
+    presets_file = DATA_DIR / "event_presets.txt"
+    if not presets_file.exists():
+        return []
+    return [line.strip() for line in presets_file.read_text().splitlines() if line.strip()]
 
 
 # Serve static files (built frontend) — must be last
