@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from config import DATA_DIR, DB_PATH, IMAGES_DIR, STATIC_DIR
+from config import CONFIG_DIR, DATA_DIR, DB_PATH, IMAGES_DIR, STATIC_DIR
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from db import Database
@@ -334,7 +334,7 @@ async def reparse_all_failed(
 
 @app.get("/api/event-presets")
 def get_event_presets():
-    presets_file = DATA_DIR / "event_presets.txt"
+    presets_file = CONFIG_DIR / "event_presets.txt"
     if not presets_file.exists():
         return []
     return [line.strip() for line in presets_file.read_text().splitlines() if line.strip()]

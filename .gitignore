@@ -1,7 +1,6 @@
 .superpowers/
 .worktrees/
 data/
-!data/event_presets.txt
 certs/
 __pycache__/
 *.pyc
