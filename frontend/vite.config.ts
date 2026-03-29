@@ -4,10 +4,14 @@ import fs from 'fs'
 import path from 'path'
 
 const certsDir = path.resolve(__dirname, '../certs')
-const certFile = path.join(certsDir, 'felixs-macbook-air.tail63d27c.ts.net.crt')
-const keyFile = path.join(certsDir, 'felixs-macbook-air.tail63d27c.ts.net.key')
-const httpsConfig = fs.existsSync(certFile) && fs.existsSync(keyFile)
-  ? { cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) }
+const certFiles = fs.existsSync(certsDir)
+  ? fs.readdirSync(certsDir).filter(f => f.endsWith('.crt'))
+  : []
+const httpsConfig = certFiles.length > 0
+  ? {
+      cert: fs.readFileSync(path.join(certsDir, certFiles[0])),
+      key: fs.readFileSync(path.join(certsDir, certFiles[0].replace('.crt', '.key'))),
+    }
   : undefined
 
 export default defineConfig({
