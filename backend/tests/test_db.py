@@ -107,6 +107,15 @@ class TestLogEntries:
         entry = db.get_log_entry(entry_id)
         assert entry is None
 
+    def test_delete_log_entry_with_images(self, db):
+        entry_id = db.insert_log_entry(
+            timestamp="2026-03-23T08:00:00Z", entry_type="meal", raw_input="toast"
+        )
+        db.add_image(entry_id, "/tmp/test.jpg", "2026-03-23T08:00:00Z")
+        db.delete_log_entry(entry_id)
+        assert db.get_log_entry(entry_id) is None
+        assert db.list_images(entry_id) == []
+
     def test_update_parse_status(self, db):
         entry_id = db.insert_log_entry(
             timestamp="2026-03-23T08:00:00Z", entry_type="meal", raw_input="rice"

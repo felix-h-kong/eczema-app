@@ -103,7 +103,23 @@ class Database:
                     DROP TABLE _log_entries_old;
                     PRAGMA foreign_keys=ON;
                 """)
-            # One-time cleanup already applied; no longer needed on every startup
+            # Fix entry_images FK if it references the old renamed table
+            img_schema = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='entry_images'").fetchone()
+            if img_schema and '_log_entries_old' in img_schema[0]:
+                conn.executescript("""
+                    PRAGMA foreign_keys=OFF;
+                    ALTER TABLE entry_images RENAME TO _entry_images_old;
+                    CREATE TABLE entry_images (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        log_entry_id INTEGER NOT NULL REFERENCES log_entries(id) ON DELETE CASCADE,
+                        image_path TEXT NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                    );
+                    INSERT INTO entry_images SELECT * FROM _entry_images_old;
+                    DROP TABLE _entry_images_old;
+                    PRAGMA foreign_keys=ON;
+                """)
             conn.commit()
         finally:
             conn.close()
