@@ -3,6 +3,7 @@ import { createLogEntry, getLogEntries, uploadImage, lookupBarcode } from '../ap
 import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { useDraftPhotos } from '../useDraftPhotos';
 
 interface MealLogProps {
   onBack: () => void;
@@ -130,7 +131,7 @@ export function MealLog({ onBack }: MealLogProps) {
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
-  const [photos, setPhotos] = useState<File[]>([]);
+  const { photos, addPhotos, removePhoto, clearPhotos } = useDraftPhotos('meal');
   const [barcodeMode, setBarcodeMode] = useState<'off' | 'manual' | 'scanning'>('off');
   const [upc, setUpc] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
@@ -154,10 +155,10 @@ export function MealLog({ onBack }: MealLogProps) {
       });
       // Upload any attached photos
       for (const photo of photos) {
-        await uploadImage(id, photo);
+        await uploadImage(id, photo.file);
       }
       setText('');
-      setPhotos([]);
+      clearPhotos();
       setBarcodeIngredients(null);
       setToast(photos.length > 0 ? 'Food logged with photo!' : 'Food logged!');
     } catch (err) {
@@ -170,7 +171,7 @@ export function MealLog({ onBack }: MealLogProps) {
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setPhotos(prev => [...prev, ...Array.from(files)]);
+      addPhotos(Array.from(files));
     }
     // Reset so the same file can be selected again
     e.target.value = '';
@@ -261,11 +262,11 @@ export function MealLog({ onBack }: MealLogProps) {
             {photos.map((photo, i) => (
               <div key={i} style={{ position: 'relative' }}>
                 <img
-                  src={URL.createObjectURL(photo)}
+                  src={photo.url}
                   alt={`Photo ${i + 1}`}
                   style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 10, border: '0.5px solid var(--border)' }}
                 />
-                <button type="button" onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))} style={{
+                <button type="button" onClick={() => removePhoto(i)} style={{
                   position: 'absolute', top: -6, right: -6,
                   width: 20, height: 20, borderRadius: '50%',
                   background: 'var(--type-flare)', color: '#fff',
@@ -291,6 +292,7 @@ export function MealLog({ onBack }: MealLogProps) {
           ref={galleryRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={handlePhotoSelect}
           style={{ display: 'none' }}
         />

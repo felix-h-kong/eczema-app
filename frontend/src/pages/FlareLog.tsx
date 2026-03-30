@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { createLogEntry, uploadImage } from '../api';
 import { Toast } from '../components/Toast';
+import { useDraftPhotos } from '../useDraftPhotos';
 
 interface FlareLogProps {
   onBack: () => void;
@@ -13,7 +14,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
-  const [photos, setPhotos] = useState<File[]>([]);
+  const { photos, addPhotos, removePhoto, clearPhotos } = useDraftPhotos('flare');
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -29,11 +30,11 @@ export function FlareLog({ onBack }: FlareLogProps) {
         notes: notes.trim() || undefined,
       });
       for (const photo of photos) {
-        await uploadImage(id, photo);
+        await uploadImage(id, photo.file);
       }
       setSeverity(5);
       setNotes('');
-      setPhotos([]);
+      clearPhotos();
       setToast(photos.length > 0 ? 'Skin check logged with photo!' : 'Skin check logged!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -113,11 +114,11 @@ export function FlareLog({ onBack }: FlareLogProps) {
             {photos.map((photo, i) => (
               <div key={i} style={{ position: 'relative' }}>
                 <img
-                  src={URL.createObjectURL(photo)}
+                  src={photo.url}
                   alt={`Photo ${i + 1}`}
                   style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 10, border: '0.5px solid var(--border)' }}
                 />
-                <button type="button" onClick={() => setPhotos(prev => prev.filter((_, j) => j !== i))} style={{
+                <button type="button" onClick={() => removePhoto(i)} style={{
                   position: 'absolute', top: -6, right: -6,
                   width: 20, height: 20, borderRadius: '50%',
                   background: 'var(--type-flare)', color: '#fff',
@@ -138,7 +139,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
           capture="environment"
           onChange={e => {
             const files = e.target.files;
-            if (files && files.length > 0) setPhotos(prev => [...prev, ...Array.from(files)]);
+            if (files && files.length > 0) addPhotos(Array.from(files));
             e.target.value = '';
           }}
           style={{ display: 'none' }}
@@ -147,9 +148,10 @@ export function FlareLog({ onBack }: FlareLogProps) {
           ref={galleryRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={e => {
             const files = e.target.files;
-            if (files && files.length > 0) setPhotos(prev => [...prev, ...Array.from(files)]);
+            if (files && files.length > 0) addPhotos(Array.from(files));
             e.target.value = '';
           }}
           style={{ display: 'none' }}
