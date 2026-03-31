@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getLogEntries, updateLogEntry, deleteLogEntry, reparseEntry, reparseAllFailed } from '../api';
 import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
+import { PhotoGallery } from '../components/PhotoGallery';
 
 function formatTime(ts: string): string {
   return new Date(ts).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
@@ -187,6 +188,7 @@ export function History() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [reparsingId, setReparsingId] = useState<number | null>(null);
   const [reparsingAll, setReparsingAll] = useState(false);
+  const [galleryState, setGalleryState] = useState<{ images: string[]; index: number } | null>(null);
 
   function loadEntries() {
     const now = new Date();
@@ -385,7 +387,13 @@ export function History() {
                         {formatTime(entry.timestamp)}
                       </span>
                       {hasImages && !isExpanded && !isEditing && (
-                        <div style={{ position: 'relative' }}>
+                        <div
+                          style={{ position: 'relative', cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGalleryState({ images: entry.images!, index: 0 });
+                          }}
+                        >
                           <img
                             src={entry.images![0]}
                             alt=""
@@ -441,9 +449,14 @@ export function History() {
                           key={j}
                           src={src}
                           alt=""
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGalleryState({ images: entry.images!, index: j });
+                          }}
                           style={{
                             width: 128, height: 128, objectFit: 'cover',
                             borderRadius: 10, border: '0.5px solid var(--border)',
+                            cursor: 'pointer',
                           }}
                         />
                       ))}
@@ -514,6 +527,13 @@ export function History() {
           </div>
         </div>
       ))}
+      {galleryState && (
+        <PhotoGallery
+          images={galleryState.images}
+          initialIndex={galleryState.index}
+          onClose={() => setGalleryState(null)}
+        />
+      )}
       <Toast message={toast} visible={!!toast} onDone={() => setToast('')} />
     </div>
   );
