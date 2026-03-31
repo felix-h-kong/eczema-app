@@ -18,21 +18,26 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return arr;
 }
 
-async function setupPushNotifications() {
+export async function setupPushNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return;
+  if (Notification.permission === 'denied') return;
+  // Only request permission if not yet granted (needs user gesture on Android)
+  if (Notification.permission !== 'granted') {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+  }
   try {
     const resp = await fetch('/api/push/vapid-key');
     if (!resp.ok) return;
     const { public_key } = await resp.json();
     const registration = await navigator.serviceWorker.ready;
-    const existing = await registration.pushManager.getSubscription();
-    if (existing) return;
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(public_key) as BufferSource,
-    });
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(public_key) as BufferSource,
+      });
+    }
     await subscribePush(subscription);
   } catch (err) {
     console.error('Push setup failed:', err);
@@ -50,6 +55,17 @@ function App() {
   }, [logForm]);
 
   useEffect(() => { setupPushNotifications(); }, []);
+
+  // Deep-link from notification clicks (e.g. weekly task -> event page)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (action === 'event') {
+      setTab('log');
+      setLogForm('event');
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
   const handleBack = () => setLogForm(null);
 

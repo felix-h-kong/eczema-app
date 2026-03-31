@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from config import CONFIG_DIR, DATA_DIR, DB_PATH, IMAGES_DIR, STATIC_DIR
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent / ".env")
 from db import Database
 
 app = FastAPI()
@@ -151,6 +151,13 @@ def list_ingredients(db: Database = Depends(get_db)):
 @app.post("/api/admin/aliases", status_code=201)
 def add_alias(alias: AliasCreate, db: Database = Depends(get_db)):
     db.add_alias(alias.variant, alias.canonical)
+    return {"ok": True}
+
+
+@app.post("/api/push/test")
+def push_test(db: Database = Depends(get_db)):
+    from notifications import send_test_notification
+    send_test_notification(db)
     return {"ok": True}
 
 

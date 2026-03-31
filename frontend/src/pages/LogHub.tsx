@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getLogEntries } from '../api';
+import { getLogEntries, sendTestNotification } from '../api';
+import { setupPushNotifications } from '../App';
 import type { LogEntry } from '../api';
 
 interface LogHubProps {
@@ -18,6 +19,8 @@ function formatTime(ts: string): string {
 
 export function LogHub({ onSelect }: LogHubProps) {
   const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [testSending, setTestSending] = useState(false);
+  const [testStatus, setTestStatus] = useState('');
 
   useEffect(() => {
     const today = new Date();
@@ -156,6 +159,34 @@ export function LogHub({ onSelect }: LogHubProps) {
           </div>
         </div>
       )}
+
+      <div style={{ marginTop: 32, textAlign: 'center' }}>
+        <button
+          onClick={async () => {
+            setTestSending(true);
+            setTestStatus('');
+            try {
+              setTestStatus('Setting up push...');
+              await setupPushNotifications();
+              setTestStatus('Sending notification...');
+              await sendTestNotification();
+              setTestStatus('Sent! Check your notifications.');
+            } catch (err) {
+              setTestStatus(`Error: ${err}`);
+            } finally { setTestSending(false); }
+          }}
+          disabled={testSending}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 12, color: 'var(--text-hint)', textDecoration: 'underline',
+          }}
+        >
+          {testSending ? 'Sending...' : 'Send test notification'}
+        </button>
+        {testStatus && (
+          <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 4 }}>{testStatus}</div>
+        )}
+      </div>
     </div>
   );
 }

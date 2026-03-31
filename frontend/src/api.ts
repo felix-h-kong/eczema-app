@@ -88,6 +88,11 @@ export async function getAnalysisResult(jobId: string): Promise<AnalysisResult &
   return resp.json();
 }
 
+export async function sendTestNotification(): Promise<void> {
+  const resp = await fetch(`${API_BASE}/push/test`, { method: 'POST' });
+  if (!resp.ok) throw new Error(`Failed to send test notification: ${resp.status}`);
+}
+
 export async function subscribePush(subscription: PushSubscription): Promise<void> {
   const json = subscription.toJSON();
   const resp = await fetch(`${API_BASE}/push/subscribe`, {

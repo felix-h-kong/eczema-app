@@ -1,6 +1,6 @@
 // Service Worker for Eczema Tracker PWA
 
-const CACHE_NAME = 'eczema-tracker-v1';
+const CACHE_NAME = 'eczema-tracker-v2';
 const OFFLINE_QUEUE_STORE = 'offline-queue';
 
 // Cache app shell on install
@@ -63,14 +63,28 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: '/icon-192.png',
+      tag: `eczema-${Date.now()}`,
+      data: { url: data.url || '/' },
     })
   );
 });
 
-// Click notification -> open app
+// Click notification -> open app (reuse existing tab if open)
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow('/'));
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin)) {
+          client.focus();
+          client.navigate(url);
+          return;
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
 });
 
 // IndexedDB helpers for offline queue
