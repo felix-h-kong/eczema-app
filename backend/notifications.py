@@ -2,17 +2,18 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from pywebpush import webpush, WebPushException
 
-from config import AEST_OFFSET_HOURS, NOTIFICATION_SKIP_WINDOW_HOURS
+from config import AEST_TIMEZONE, NOTIFICATION_SKIP_WINDOW_HOURS
 
 logger = logging.getLogger(__name__)
 
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
 VAPID_CLAIMS = {"sub": "mailto:admin@localhost"}
 
-AEST_TZ = timezone(timedelta(hours=AEST_OFFSET_HOURS))
+AEST_TZ = ZoneInfo(AEST_TIMEZONE)
 
 
 def send_push(db, title: str, body: str, url: str = "/") -> None:
@@ -93,35 +94,31 @@ def setup_scheduler(db):
 
     scheduler = BackgroundScheduler()
 
-    def to_utc(aest_time_str):
-        hour, minute = map(int, aest_time_str.split(":"))
-        return (hour - AEST_OFFSET_HOURS) % 24, minute
-
     # Meal reminders
     for meal, time_str in NOTIFICATION_TIMES_AEST.items():
-        utc_hour, minute = to_utc(time_str)
+        hour, minute = map(int, time_str.split(":"))
         scheduler.add_job(
             send_meal_reminder, "cron",
-            hour=utc_hour, minute=minute,
+            hour=hour, minute=minute, timezone=AEST_TZ,
             args=[db, f"Time to log {meal}"],
             id=f"reminder_{meal}",
         )
 
     # Meal nudges (1h after each meal reminder)
     for meal, (nudge_time, reminder_time) in NUDGE_TIMES_AEST.items():
-        utc_hour, minute = to_utc(nudge_time)
+        hour, minute = map(int, nudge_time.split(":"))
         scheduler.add_job(
             send_meal_nudge, "cron",
-            hour=utc_hour, minute=minute,
+            hour=hour, minute=minute, timezone=AEST_TZ,
             args=[db, meal, reminder_time],
             id=f"nudge_{meal}",
         )
 
     # Bedtime reminder
-    utc_hour, minute = to_utc(BEDTIME_TIME_AEST)
+    hour, minute = map(int, BEDTIME_TIME_AEST.split(":"))
     scheduler.add_job(
         send_bedtime_reminder, "cron",
-        hour=utc_hour, minute=minute,
+        hour=hour, minute=minute, timezone=AEST_TZ,
         args=[db],
         id="bedtime_reminder",
     )
@@ -129,10 +126,10 @@ def setup_scheduler(db):
     # Weekly tasks — run daily, function checks acknowledgment since last Saturday
     for task in WEEKLY_TASKS:
         task_id = task["preset"].lower().replace(" ", "_")
-        utc_hour, minute = to_utc(WEEKLY_TASK_TIME_AEST)
+        hour, minute = map(int, WEEKLY_TASK_TIME_AEST.split(":"))
         scheduler.add_job(
             send_weekly_task_reminder, "cron",
-            hour=utc_hour, minute=minute,
+            hour=hour, minute=minute, timezone=AEST_TZ,
             args=[db, task["preset"], task["message"]],
             id=f"weekly_{task_id}",
         )

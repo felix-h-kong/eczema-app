@@ -10,8 +10,8 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 # Claude API
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
-# Notification schedule (AEST = UTC+10/+11 DST)
-AEST_OFFSET_HOURS = 10  # UTC+10, ignoring DST for simplicity
+# Notification schedule (Australia/Sydney handles AEST/AEDT automatically)
+AEST_TIMEZONE = "Australia/Sydney"
 
 NOTIFICATION_TIMES_AEST = {
     "breakfast": "07:30",

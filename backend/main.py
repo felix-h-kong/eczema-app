@@ -347,6 +347,14 @@ def get_event_presets():
     return [line.strip() for line in presets_file.read_text().splitlines() if line.strip()]
 
 
+@app.get("/api/medicine-presets")
+def get_medicine_presets():
+    presets_file = CONFIG_DIR / "medicine_presets.txt"
+    if not presets_file.exists():
+        return []
+    return [line.strip() for line in presets_file.read_text().splitlines() if line.strip()]
+
+
 # Serve static files (built frontend) — must be last
 if STATIC_DIR.exists():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

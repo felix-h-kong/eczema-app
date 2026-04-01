@@ -65,6 +65,11 @@ export function MedsLog({ onBack }: MedsLogProps) {
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const [presets, setPresets] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/medicine-presets').then(r => r.json()).then(setPresets).catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -98,6 +103,33 @@ export function MedsLog({ onBack }: MedsLogProps) {
       }}>
         {'\u2190'} Log medication
       </button>
+
+      {presets.length > 0 && (
+        <>
+          <div style={{
+            fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+            textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8,
+          }}>
+            Quick log
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {presets.map(preset => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setName(preset)}
+                style={{
+                  background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+                  borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
+                  color: 'var(--text-primary)', cursor: 'pointer',
+                }}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <RecentMeds onSelect={(n, d) => { setName(n); setDose(d); }} />
 
