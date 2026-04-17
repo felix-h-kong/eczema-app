@@ -27,6 +27,7 @@ class TestDatabaseInit:
         assert "entry_images" in table_names
         assert "push_subscriptions" in table_names
         assert "environment_readings" in table_names
+        assert "air_quality_readings" in table_names
 
 
 class TestLogEntries:
@@ -246,3 +247,86 @@ class TestEnvironmentReadings:
 
     def test_list_empty_returns_empty_list(self, db):
         assert db.list_environment_readings() == []
+
+
+class TestAirQualityReadings:
+    def _reading(self, ts="2026-04-15T00:00:00Z", site_id=70, site_name="Lindfield",
+                 value=8.5, category="Good"):
+        return {"timestamp": ts, "site_id": site_id, "site_name": site_name,
+                "value": value, "category": category}
+
+    def test_insert_returns_count(self, db):
+        readings = [
+            self._reading(ts="2026-04-15T00:00:00Z"),
+            self._reading(ts="2026-04-15T01:00:00Z"),
+        ]
+        assert db.insert_air_quality_readings(readings) == 2
+
+    def test_insert_deduplicates_on_timestamp_site_parameter(self, db):
+        readings = [self._reading()]
+        assert db.insert_air_quality_readings(readings) == 1
+        assert db.insert_air_quality_readings(readings) == 0
+
+    def test_insert_different_sites_same_timestamp(self, db):
+        readings = [
+            self._reading(site_id=70, site_name="Lindfield"),
+            self._reading(site_id=113, site_name="Macquarie Park"),
+        ]
+        assert db.insert_air_quality_readings(readings) == 2
+
+    def test_insert_null_value(self, db):
+        readings = [self._reading(value=None, category=None)]
+        assert db.insert_air_quality_readings(readings) == 1
+        rows = db.list_air_quality_readings()
+        assert rows[0]["value"] is None
+
+    def test_insert_empty_list(self, db):
+        assert db.insert_air_quality_readings([]) == 0
+
+    def test_insert_with_custom_source(self, db):
+        readings = [self._reading()]
+        db.insert_air_quality_readings(readings, source="test_source")
+        rows = db.list_air_quality_readings()
+        assert rows[0]["source"] == "test_source"
+
+    def test_list_filters_by_date_range(self, db):
+        readings = [
+            self._reading(ts="2026-04-14T00:00:00Z", value=5.0),
+            self._reading(ts="2026-04-15T00:00:00Z", value=8.5),
+            self._reading(ts="2026-04-16T00:00:00Z", value=15.0),
+        ]
+        db.insert_air_quality_readings(readings)
+        rows = db.list_air_quality_readings(
+            from_date="2026-04-15T00:00:00Z",
+            to_date="2026-04-15T23:59:59Z",
+        )
+        assert len(rows) == 1
+        assert rows[0]["value"] == 8.5
+
+    def test_list_filters_by_site_id(self, db):
+        readings = [
+            self._reading(site_id=70, site_name="Lindfield"),
+            self._reading(site_id=113, site_name="Macquarie Park"),
+        ]
+        db.insert_air_quality_readings(readings)
+        rows = db.list_air_quality_readings(site_id=70)
+        assert len(rows) == 1
+        assert rows[0]["site_name"] == "Lindfield"
+
+    def test_list_orders_by_timestamp_ascending(self, db):
+        readings = [
+            self._reading(ts="2026-04-15T02:00:00Z"),
+            self._reading(ts="2026-04-15T00:00:00Z"),
+            self._reading(ts="2026-04-15T01:00:00Z"),
+        ]
+        db.insert_air_quality_readings(readings)
+        rows = db.list_air_quality_readings()
+        timestamps = [r["timestamp"] for r in rows]
+        assert timestamps == [
+            "2026-04-15T00:00:00Z",
+            "2026-04-15T01:00:00Z",
+            "2026-04-15T02:00:00Z",
+        ]
+
+    def test_list_empty_returns_empty_list(self, db):
+        assert db.list_air_quality_readings() == []

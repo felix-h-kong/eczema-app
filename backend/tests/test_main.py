@@ -227,3 +227,84 @@ class TestEnvironmentReadings:
         resp = client.get("/api/environment")
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+class TestAirQualityEndpoints:
+    def _readings(self, n=3):
+        return [
+            {
+                "timestamp": f"2026-04-15T{i:02d}:00:00Z",
+                "site_id": 70,
+                "site_name": "Lindfield",
+                "parameter": "PM2.5",
+                "value": 8.0 + i * 0.5,
+                "unit": "µg/m³",
+                "category": "Good",
+            }
+            for i in range(n)
+        ]
+
+    def test_post_accepts_batch_and_returns_counts(self, client):
+        readings = self._readings(5)
+        resp = client.post("/api/air-quality", json={"readings": readings})
+        assert resp.status_code == 201
+        assert resp.json() == {"inserted": 5, "total": 5}
+
+    def test_post_deduplicates(self, client):
+        readings = self._readings(3)
+        client.post("/api/air-quality", json={"readings": readings})
+        resp = client.post("/api/air-quality", json={"readings": readings})
+        assert resp.json() == {"inserted": 0, "total": 3}
+
+    def test_post_empty_batch(self, client):
+        resp = client.post("/api/air-quality", json={"readings": []})
+        assert resp.status_code == 201
+        assert resp.json() == {"inserted": 0, "total": 0}
+
+    def test_post_accepts_null_value(self, client):
+        readings = [{
+            "timestamp": "2026-04-15T00:00:00Z",
+            "site_id": 70, "site_name": "Lindfield",
+            "value": None,
+        }]
+        resp = client.post("/api/air-quality", json={"readings": readings})
+        assert resp.status_code == 201
+        data = client.get("/api/air-quality").json()
+        assert data[0]["value"] is None
+
+    def test_get_returns_readings(self, client):
+        client.post("/api/air-quality", json={"readings": self._readings(3)})
+        resp = client.get("/api/air-quality")
+        assert resp.status_code == 200
+        assert len(resp.json()) == 3
+
+    def test_get_filters_by_date_range(self, client):
+        readings = [
+            {"timestamp": "2026-04-14T00:00:00Z", "site_id": 70,
+             "site_name": "Lindfield", "value": 5.0},
+            {"timestamp": "2026-04-15T00:00:00Z", "site_id": 70,
+             "site_name": "Lindfield", "value": 8.5},
+        ]
+        client.post("/api/air-quality", json={"readings": readings})
+        resp = client.get("/api/air-quality?from=2026-04-15T00:00:00Z&to=2026-04-15T23:59:59Z")
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["value"] == 8.5
+
+    def test_get_filters_by_site_id(self, client):
+        readings = [
+            {"timestamp": "2026-04-15T00:00:00Z", "site_id": 70,
+             "site_name": "Lindfield", "value": 8.5},
+            {"timestamp": "2026-04-15T00:00:00Z", "site_id": 113,
+             "site_name": "Macquarie Park", "value": 10.1},
+        ]
+        client.post("/api/air-quality", json={"readings": readings})
+        resp = client.get("/api/air-quality?site_id=70")
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["site_name"] == "Lindfield"
+
+    def test_get_empty_returns_empty_list(self, client):
+        resp = client.get("/api/air-quality")
+        assert resp.status_code == 200
+        assert resp.json() == []

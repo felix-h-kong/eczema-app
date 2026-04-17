@@ -81,6 +81,21 @@ class EnvironmentSyncRequest(BaseModel):
     source: str = "govee_h5075"
 
 
+class AirQualityReading(BaseModel):
+    timestamp: str
+    site_id: int
+    site_name: str
+    parameter: str = "PM2.5"
+    value: Optional[float] = None
+    unit: str = "µg/m³"
+    category: Optional[str] = None
+
+
+class AirQualitySyncRequest(BaseModel):
+    readings: list[AirQualityReading]
+    source: str = "nsw_dpie"
+
+
 @app.post("/api/log", status_code=201)
 def create_log_entry(entry: LogEntryCreate, background_tasks: BackgroundTasks, db: Database = Depends(get_db)):
     entry_id = db.insert_log_entry(
@@ -195,6 +210,25 @@ def get_environment(
     db: Database = Depends(get_db),
 ):
     return db.list_environment_readings(from_date=from_date, to_date=to_date)
+
+
+@app.post("/api/air-quality", status_code=201)
+def post_air_quality(req: AirQualitySyncRequest, db: Database = Depends(get_db)):
+    readings = [r.model_dump() for r in req.readings]
+    inserted = db.insert_air_quality_readings(readings, source=req.source)
+    return {"inserted": inserted, "total": len(readings)}
+
+
+@app.get("/api/air-quality")
+def get_air_quality(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    site_id: Optional[int] = Query(None),
+    db: Database = Depends(get_db),
+):
+    return db.list_air_quality_readings(
+        from_date=from_date, to_date=to_date, site_id=site_id
+    )
 
 
 class AnalyseRequest(BaseModel):

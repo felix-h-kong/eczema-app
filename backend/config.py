@@ -60,6 +60,20 @@ def get_flare_config():
     """Read flare detection config fresh from disk each time."""
     cfg = _load_analysis_config()
     return cfg["flare_rise_threshold"], cfg["flare_rolling_window"]
+# Air quality monitoring (NSW DPIE)
+AIR_QUALITY_API_BASE = "https://data.airquality.nsw.gov.au/api/Data"
+AIR_QUALITY_STATIONS = {
+    70: "Lindfield",
+    113: "Macquarie Park",
+    155: "Rouse Hill",
+    1001: "Cook and Phillip",
+    1007: "Ultimo-UTS",
+    15: "Alexandria",
+}
+AIR_QUALITY_PARAMETERS = ["PM2.5"]
+AIR_QUALITY_DEFAULT_HOURS_BACK = 25   # 1h overlap for hourly cron
+AIR_QUALITY_MAX_HOURS_BACK = 168      # max backfill = 7 days
+
 MEDICATION_CONFOUND_HOURS = 12
 MIN_FLARE_APPEARANCES = 2
 LOW_FLARE_WARNING_THRESHOLD = 10

@@ -86,6 +86,22 @@ class Database:
                     created_at TEXT NOT NULL DEFAULT (datetime('now'))
                 );
                 CREATE INDEX IF NOT EXISTS idx_env_timestamp ON environment_readings(timestamp);
+
+                CREATE TABLE IF NOT EXISTS air_quality_readings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    site_id INTEGER NOT NULL,
+                    site_name TEXT NOT NULL,
+                    parameter TEXT NOT NULL DEFAULT 'PM2.5',
+                    value REAL,
+                    unit TEXT DEFAULT 'µg/m³',
+                    category TEXT,
+                    source TEXT NOT NULL DEFAULT 'nsw_dpie',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(timestamp, site_id, parameter)
+                );
+                CREATE INDEX IF NOT EXISTS idx_aq_timestamp ON air_quality_readings(timestamp);
+                CREATE INDEX IF NOT EXISTS idx_aq_site ON air_quality_readings(site_id);
             """)
             # Allow parse_status to be NULL (remove NOT NULL constraint if present)
             # Check current schema and migrate if needed
@@ -311,6 +327,48 @@ class Database:
         if to_date is not None:
             sql += " AND timestamp <= ?"
             params.append(to_date)
+        sql += " ORDER BY timestamp ASC"
+
+        conn = self._connect()
+        try:
+            rows = conn.execute(sql, params).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def insert_air_quality_readings(self, readings, source="nsw_dpie"):
+        if not readings:
+            return 0
+        conn = self._connect()
+        try:
+            inserted = 0
+            for r in readings:
+                cursor = conn.execute(
+                    """INSERT OR IGNORE INTO air_quality_readings
+                       (timestamp, site_id, site_name, parameter, value, unit, category, source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (r["timestamp"], r["site_id"], r["site_name"],
+                     r.get("parameter", "PM2.5"), r.get("value"),
+                     r.get("unit", "µg/m³"), r.get("category"), source),
+                )
+                inserted += cursor.rowcount
+            conn.commit()
+            return inserted
+        finally:
+            conn.close()
+
+    def list_air_quality_readings(self, from_date=None, to_date=None, site_id=None):
+        sql = "SELECT * FROM air_quality_readings WHERE 1=1"
+        params = []
+        if from_date is not None:
+            sql += " AND timestamp >= ?"
+            params.append(from_date)
+        if to_date is not None:
+            sql += " AND timestamp <= ?"
+            params.append(to_date)
+        if site_id is not None:
+            sql += " AND site_id = ?"
+            params.append(site_id)
         sql += " ORDER BY timestamp ASC"
 
         conn = self._connect()
