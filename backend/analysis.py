@@ -1,10 +1,11 @@
 """
-Correlation algorithm: identifies food ingredients that correlate with elevated skin states.
+Correlation algorithm: identifies food ingredients that correlate with skin flare-ups.
 
 Algorithm:
 1. Resolve all ingredient names through ingredient_aliases table
-2. Collect all skin check entries (explicit + meal-associated) with severity >= threshold
-3. For each elevated event, define pre-flare window: food logs in 6-48h before
+2. Detect flares as rising edges: skin checks where severity jumps >= FLARE_RISE_THRESHOLD
+   above the rolling average of the previous FLARE_ROLLING_WINDOW checks
+3. For each flare, define pre-flare window: food logs in 6-48h before
 4. Collect ingredients from food in flare windows → flare ingredient set
 5. Collect ingredients from food outside any flare window → baseline ingredient set
 6. Per ingredient, compute: flare_freq, baseline_freq, lift, flare_appearances
@@ -20,7 +21,7 @@ from collections import defaultdict
 
 from config import (
     FLARE_WINDOW_HOURS,
-    FLARE_SEVERITY_THRESHOLD,
+    get_flare_config,
     MEDICATION_CONFOUND_HOURS,
     MIN_FLARE_APPEARANCES,
     LOW_FLARE_WARNING_THRESHOLD,
@@ -51,6 +52,33 @@ def _get_ingredients(entry: dict, use_likely: bool) -> list[str]:
     return ingredients
 
 
+def _detect_flares(all_skin: list[dict]) -> list[dict]:
+    """Detect flares as rising edges in severity.
+
+    A flare is a skin check whose severity is >= rise_threshold above the
+    rolling average of the previous rolling_window checks.
+    Config is read fresh from config/analysis.txt each call.
+    """
+    rise_threshold, rolling_window = get_flare_config()
+    sorted_skin = sorted(all_skin, key=lambda e: _parse_ts(e["timestamp"]))
+    flares = []
+    for i, entry in enumerate(sorted_skin):
+        severity = entry.get("severity") or 0
+        if i < rolling_window:
+            continue
+        window = sorted_skin[i - rolling_window : i]
+        avg = sum((e.get("severity") or 0) for e in window) / rolling_window
+        if severity - avg >= rise_threshold:
+            flares.append(entry)
+    # Collapse multiple flares on the same calendar day (UTC) — keep the highest severity
+    by_day: dict[str, dict] = {}
+    for f in flares:
+        day = _parse_ts(f["timestamp"]).date().isoformat()
+        if day not in by_day or (f.get("severity") or 0) > (by_day[day].get("severity") or 0):
+            by_day[day] = f
+    return list(by_day.values())
+
+
 def compute_correlation(db, use_likely: bool = False) -> dict:
     """
     Compute ingredient-flare correlations.
@@ -76,22 +104,19 @@ def compute_correlation(db, use_likely: bool = False) -> dict:
         }
     """
     # --- 1. Load all relevant entries ---
-    # Use both explicit skin checks and meal-associated check-ins,
-    # filtered to severity >= threshold (elevated skin states)
-    # TODO: Also detect flares from sharp severity increases (e.g. +3 from
-    #       rolling average), not just absolute threshold. A jump from 3→7
-    #       is more significant than a steady 7.
+    # Detect flares as rising edges: severity jumps from the rolling average
     all_skin = db.list_log_entries(entry_type="flare")
-    flares = [e for e in all_skin if (e.get("severity") or 0) >= FLARE_SEVERITY_THRESHOLD]
+    flares = _detect_flares(all_skin)
     meals = db.list_log_entries(entry_type="meal")
     medications = db.list_log_entries(entry_type="medication")
 
     flare_count = len(flares)
 
+    rise_threshold, _ = get_flare_config()
     warning = None
     if flare_count < LOW_FLARE_WARNING_THRESHOLD:
         warning = (
-            f"Only {flare_count} elevated skin event(s) (severity \u2265 {FLARE_SEVERITY_THRESHOLD}) recorded. "
+            f"Only {flare_count} flare(s) (severity rise \u2265 {rise_threshold} from rolling avg) detected. "
             f"At least {LOW_FLARE_WARNING_THRESHOLD} are recommended for reliable correlation analysis."
         )
 

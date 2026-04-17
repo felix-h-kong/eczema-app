@@ -1,132 +1,36 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createLogEntry, getLogEntries, uploadImage, lookupBarcode } from '../api';
-import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { useDraftPhotos } from '../useDraftPhotos';
+import { useDraftText } from '../useDraftText';
 
 interface MealLogProps {
   onBack: () => void;
 }
 
-function SkinCheck({ onDone }: { onDone: () => void }) {
-  const [severity, setSeverity] = useState(3);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit() {
-    setSubmitting(true);
-    try {
-      await createLogEntry({
-        timestamp: new Date().toISOString(),
-        type: 'flare',
-        severity,
-        notes: 'skin-checkin:pre-meal',
-      });
-    } catch {
-      // Non-critical, don't block
-    }
-    onDone();
-  }
-
-  return (
-    <div style={{
-      background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
-      borderRadius: 14, padding: 16, textAlign: 'center',
-    }}>
-      <div style={{
-        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
-        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8,
-      }}>
-        Quick skin check
-      </div>
-      <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 12 }}>
-        How is your skin right now? <strong>{severity}</strong> / 10
-      </div>
-      <input
-        type="range" min={1} max={10} value={severity}
-        onChange={e => setSeverity(Number(e.target.value))}
-        style={{ width: '100%', marginBottom: 4 }}
-      />
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        fontSize: 11, color: 'var(--text-hint)', marginBottom: 14,
-      }}>
-        <span>Clear (1)</span>
-        <span>Severe (10)</span>
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={handleSubmit} disabled={submitting} style={{
-          flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 500, borderRadius: 14,
-          border: 'none', background: 'var(--primary)', color: '#FDF8F3', cursor: 'pointer',
-        }}>
-          Log
-        </button>
-        <button onClick={onDone} style={{
-          flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 500, borderRadius: 14,
-          border: '0.5px solid var(--border)', background: 'var(--bg-surface-2)',
-          color: 'var(--text-secondary)', cursor: 'pointer',
-        }}>
-          Skip
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RecentMeals({ onSelect }: { onSelect: (text: string) => void }) {
-  const [meals, setMeals] = useState<LogEntry[]>([]);
-
+function useMealHistory(): string[] {
+  const [history, setHistory] = useState<string[]>([]);
   useEffect(() => {
     getLogEntries({ type: 'meal' }).then(entries => {
-      // Deduplicate by raw_input, keep most recent, limit to 5
       const seen = new Set<string>();
-      const unique: LogEntry[] = [];
+      const unique: string[] = [];
       for (const e of entries) {
-        const key = (e.raw_input || '').trim().toLowerCase();
+        const raw = (e.raw_input || '').trim();
+        const key = raw.toLowerCase();
         if (key && !seen.has(key)) {
           seen.add(key);
-          unique.push(e);
-          if (unique.length >= 5) break;
+          unique.push(raw);
         }
       }
-      setMeals(unique);
+      setHistory(unique);
     }).catch(() => {});
   }, []);
-
-  if (meals.length === 0) return null;
-
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{
-        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
-        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6,
-      }}>
-        Recent food
-      </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {meals.map(m => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => onSelect(m.raw_input || '')}
-            style={{
-              background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
-              borderRadius: 10, padding: '6px 10px', fontSize: 13,
-              color: 'var(--text-primary)', cursor: 'pointer',
-              maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap', textAlign: 'left',
-            }}
-          >
-            {(m.raw_input || '').length > 40 ? (m.raw_input || '').slice(0, 40) + '\u2026' : m.raw_input}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return history;
 }
 
 export function MealLog({ onBack }: MealLogProps) {
-  const [text, setText] = useState('');
+  const [text, setText, clearText] = useDraftText('draft:meal:text');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
@@ -136,10 +40,16 @@ export function MealLog({ onBack }: MealLogProps) {
   const [upc, setUpc] = useState('');
   const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [barcodeIngredients, setBarcodeIngredients] = useState<string | null>(null);
-  const [skinCheckDone, setSkinCheckDone] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const mealHistory = useMealHistory();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+
+  const query = text.trim().toLowerCase();
+  const suggestions = query.length >= 2
+    ? mealHistory.filter(h => h.toLowerCase().includes(query)).slice(0, 8)
+    : [];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -157,7 +67,7 @@ export function MealLog({ onBack }: MealLogProps) {
       for (const photo of photos) {
         await uploadImage(id, photo.file);
       }
-      setText('');
+      clearText();
       clearPhotos();
       setBarcodeIngredients(null);
       setToast(photos.length > 0 ? 'Food logged with photo!' : 'Food logged!');
@@ -218,42 +128,65 @@ export function MealLog({ onBack }: MealLogProps) {
         {'\u2190'} Log food
       </button>
 
-      {/* Skin check — shown once per visit until answered */}
-      {!skinCheckDone && (
-        <div style={{ marginBottom: 14 }}>
-          <SkinCheck onDone={() => setSkinCheckDone(true)} />
-        </div>
-      )}
-
-      <RecentMeals onSelect={(t) => setText(t)} />
-
       <form onSubmit={handleSubmit}>
-        <div style={{
-          background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
-          borderRadius: 14, padding: 14, marginBottom: 12,
-        }}>
-          <label style={{
-            display: 'block', fontSize: 11, fontWeight: 500,
-            letterSpacing: '0.05em', textTransform: 'uppercase',
-            color: 'var(--text-secondary)', marginBottom: 6,
+        <div style={{ position: 'relative' }}>
+          <div style={{
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+            borderRadius: 14, padding: 14, marginBottom: showSuggestions && suggestions.length > 0 ? 0 : 12,
+            borderBottomLeftRadius: showSuggestions && suggestions.length > 0 ? 0 : 14,
+            borderBottomRightRadius: showSuggestions && suggestions.length > 0 ? 0 : 14,
           }}>
-            What did you eat?
-          </label>
-          <textarea
-            ref={textareaRef}
-            autoFocus
-            value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder="e.g. oatmeal with blueberries, almond milk"
-            rows={4}
-            style={{
-              width: '100%', padding: 0, fontSize: 15,
-              border: 'none', background: 'transparent',
-              resize: 'vertical', fontFamily: 'inherit',
-              color: 'var(--text-primary)', outline: 'none',
-              lineHeight: 1.5,
-            }}
-          />
+            <label style={{
+              display: 'block', fontSize: 11, fontWeight: 500,
+              letterSpacing: '0.05em', textTransform: 'uppercase',
+              color: 'var(--text-secondary)', marginBottom: 6,
+            }}>
+              What did you eat?
+            </label>
+            <textarea
+              ref={textareaRef}
+              autoFocus
+              value={text}
+              onChange={e => { setText(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => { setTimeout(() => setShowSuggestions(false), 150); }}
+              placeholder="e.g. oatmeal with blueberries, almond milk"
+              rows={4}
+              style={{
+                width: '100%', padding: 0, fontSize: 15,
+                border: 'none', background: 'transparent',
+                resize: 'vertical', fontFamily: 'inherit',
+                color: 'var(--text-primary)', outline: 'none',
+                lineHeight: 1.5,
+              }}
+            />
+          </div>
+          {showSuggestions && suggestions.length > 0 && (
+            <div style={{
+              background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
+              borderTop: 'none',
+              borderBottomLeftRadius: 14, borderBottomRightRadius: 14,
+              marginBottom: 12, overflow: 'hidden',
+            }}>
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => { setText(s); setShowSuggestions(false); textareaRef.current?.focus(); }}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '10px 14px', fontSize: 14,
+                    color: 'var(--text-primary)', background: 'transparent',
+                    border: 'none', borderTop: i > 0 ? '0.5px solid var(--border)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Photo thumbnails */}

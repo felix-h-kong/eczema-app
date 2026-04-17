@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getLogEntries, sendTestNotification } from '../api';
+import { getLogEntries, sendTestNotification, submitEnvironmentReadings } from '../api';
 import { setupPushNotifications } from '../App';
+import { syncH5075, WebBluetoothUnavailableError } from '../govee';
 import type { LogEntry } from '../api';
 
 interface LogHubProps {
@@ -21,6 +22,8 @@ export function LogHub({ onSelect }: LogHubProps) {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [testSending, setTestSending] = useState(false);
   const [testStatus, setTestStatus] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
 
   useEffect(() => {
     const today = new Date();
@@ -40,7 +43,7 @@ export function LogHub({ onSelect }: LogHubProps) {
 
       {/* Action cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* Meal — primary card */}
+        {/* Meal — primary full-width card */}
         <button onClick={() => onSelect('meal')} style={{
           display: 'flex', alignItems: 'center', gap: 14,
           background: 'var(--primary)', border: 'none', borderRadius: 18,
@@ -58,59 +61,32 @@ export function LogHub({ onSelect }: LogHubProps) {
           </div>
         </button>
 
-        {/* Flare — secondary card */}
-        <button onClick={() => onSelect('flare')} style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 18,
-          padding: '14px 16px', cursor: 'pointer', textAlign: 'left', width: '100%',
-        }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 11,
-            background: 'var(--bg-surface-2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, flexShrink: 0,
-          }}>{'\u{1F534}'}</div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>Skin check</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Rate severity · Add photos</div>
-          </div>
-        </button>
-
-        {/* Event — secondary card */}
-        <button onClick={() => onSelect('event')} style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 18,
-          padding: '14px 16px', cursor: 'pointer', textAlign: 'left', width: '100%',
-        }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 11,
-            background: 'var(--bg-surface-2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, flexShrink: 0,
-          }}>{'\u{1F4CB}'}</div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>Log event</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nails · Shower · Sleep · Stress</div>
-          </div>
-        </button>
-
-        {/* Medication — secondary card */}
-        <button onClick={() => onSelect('meds')} style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 18,
-          padding: '14px 16px', cursor: 'pointer', textAlign: 'left', width: '100%',
-        }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 11,
-            background: 'var(--bg-surface-2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, flexShrink: 0,
-          }}>{'\u{1F48A}'}</div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>Log medication</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Drug · Dose</div>
-          </div>
-        </button>
+        {/* 2x2 grid for secondary cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {([
+            { key: 'flare', emoji: '\u{1F534}', label: 'Skin check', sub: 'Rate · Photos' },
+            { key: 'note', emoji: '\u{1F4DD}', label: 'Log note', sub: 'Observations' },
+            { key: 'event', emoji: '\u{1F4CB}', label: 'Log event', sub: 'Nails · Shower' },
+            { key: 'meds', emoji: '\u{1F48A}', label: 'Medication', sub: 'Drug · Dose' },
+          ] as const).map(({ key, emoji, label, sub }) => (
+            <button key={key} onClick={() => onSelect(key)} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+              background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 18,
+              padding: '14px 8px', cursor: 'pointer', textAlign: 'center',
+            }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 11,
+                background: 'var(--bg-surface-2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18,
+              }}>{emoji}</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{sub}</div>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Today section */}
@@ -185,6 +161,51 @@ export function LogHub({ onSelect }: LogHubProps) {
         </button>
         {testStatus && (
           <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 4 }}>{testStatus}</div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16, textAlign: 'center' }}>
+        <button
+          onClick={async () => {
+            setSyncing(true);
+            setSyncStatus('');
+            try {
+              const readings = await syncH5075({
+                onProgress: (received, total) => {
+                  setSyncStatus(`Downloading ${received}/${total} packets...`);
+                },
+              });
+              if (readings.length === 0) {
+                setSyncStatus('No readings on sensor.');
+                return;
+              }
+              setSyncStatus(`Saving ${readings.length} readings...`);
+              const result = await submitEnvironmentReadings(readings);
+              setSyncStatus(
+                `Saved ${result.inserted} new readings (${result.total - result.inserted} already on file).`,
+              );
+            } catch (err) {
+              if (err instanceof WebBluetoothUnavailableError) {
+                setSyncStatus('Web Bluetooth not available. Use Chrome on Android.');
+              } else if (err instanceof Error && err.name === 'NotFoundError') {
+                setSyncStatus('No sensor selected.');
+              } else {
+                setSyncStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            } finally {
+              setSyncing(false);
+            }
+          }}
+          disabled={syncing}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 12, color: 'var(--text-hint)', textDecoration: 'underline',
+          }}
+        >
+          {syncing ? 'Syncing...' : 'Sync Govee sensor'}
+        </button>
+        {syncStatus && (
+          <div style={{ fontSize: 11, color: 'var(--text-hint)', marginTop: 4 }}>{syncStatus}</div>
         )}
       </div>
     </div>

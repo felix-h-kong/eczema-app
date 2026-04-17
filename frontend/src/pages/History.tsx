@@ -8,14 +8,6 @@ function formatTime(ts: string): string {
   return new Date(ts).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatWeekRange(): string {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(now.getDate() - 6);
-  const fmt = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-  return `${fmt(start)} \u2013 ${fmt(now)}`;
-}
-
 function groupByDay(entries: LogEntry[]): Record<string, LogEntry[]> {
   const groups: Record<string, LogEntry[]> = {};
   for (const entry of entries) {
@@ -191,11 +183,7 @@ export function History() {
   const [galleryState, setGalleryState] = useState<{ images: string[]; index: number } | null>(null);
 
   function loadEntries() {
-    const now = new Date();
-    const from = new Date(now);
-    from.setDate(now.getDate() - 6);
-    from.setHours(0, 0, 0, 0);
-    getLogEntries({ from: from.toISOString() }).then(setEntries).catch(() => {});
+    getLogEntries().then(setEntries).catch(() => {});
   }
 
   useEffect(() => { loadEntries(); }, []);
@@ -258,7 +246,7 @@ export function History() {
         fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
         textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4,
       }}>
-        {formatWeekRange()}
+        All entries
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>History</h1>
@@ -280,7 +268,7 @@ export function History() {
 
       {Object.keys(grouped).length === 0 && (
         <p style={{ color: 'var(--text-hint)', textAlign: 'center', padding: 32, fontSize: 14 }}>
-          No entries this week. Start logging!
+          No entries yet. Start logging!
         </p>
       )}
 

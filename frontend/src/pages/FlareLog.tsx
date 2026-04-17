@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { createLogEntry, uploadImage } from '../api';
 import { Toast } from '../components/Toast';
 import { useDraftPhotos } from '../useDraftPhotos';
+import { useDraftText } from '../useDraftText';
 
 interface FlareLogProps {
   onBack: () => void;
@@ -9,7 +10,7 @@ interface FlareLogProps {
 
 export function FlareLog({ onBack }: FlareLogProps) {
   const [severity, setSeverity] = useState(5);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes, clearNotes] = useDraftText('draft:flare:notes');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
@@ -33,7 +34,7 @@ export function FlareLog({ onBack }: FlareLogProps) {
         await uploadImage(id, photo.file);
       }
       setSeverity(5);
-      setNotes('');
+      clearNotes();
       clearPhotos();
       setToast(photos.length > 0 ? 'Skin check logged with photo!' : 'Skin check logged!');
     } catch (err) {

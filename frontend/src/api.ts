@@ -127,6 +127,39 @@ export async function reparseAllFailed(): Promise<{ entries: number }> {
 
 export async function lookupBarcode(upc: string): Promise<{ ingredients: string; name: string }> {
   const resp = await fetch(`${API_BASE}/barcode/${upc}`, { method: 'POST' });
-  if (!resp.ok) throw new Error(`Barcode lookup failed: ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => null);
+    throw new Error(body?.detail || `Barcode lookup failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export interface EnvironmentReading {
+  timestamp: string;
+  temperature: number;
+  humidity: number;
+}
+
+export async function submitEnvironmentReadings(
+  readings: EnvironmentReading[],
+  source: string = 'govee_h5075',
+): Promise<{ inserted: number; total: number }> {
+  const resp = await fetch(`${API_BASE}/environment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ readings, source }),
+  });
+  if (!resp.ok) throw new Error(`Failed to submit environment readings: ${resp.status}`);
+  return resp.json();
+}
+
+export async function getEnvironmentReadings(
+  params?: { from?: string; to?: string },
+): Promise<(EnvironmentReading & { source: string })[]> {
+  const query = new URLSearchParams();
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  const resp = await fetch(`${API_BASE}/environment?${query}`);
+  if (!resp.ok) throw new Error(`Failed to fetch environment readings: ${resp.status}`);
   return resp.json();
 }

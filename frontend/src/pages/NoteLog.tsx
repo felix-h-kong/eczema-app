@@ -1,34 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createLogEntry } from '../api';
 import { Toast } from '../components/Toast';
 import { useDraftText } from '../useDraftText';
 
-interface EventLogProps {
+interface NoteLogProps {
   onBack: () => void;
 }
 
-export function EventLog({ onBack }: EventLogProps) {
-  const [presets, setPresets] = useState<string[]>([]);
-  const [text, setText, clearText] = useDraftText('draft:event:text');
+export function NoteLog({ onBack }: NoteLogProps) {
+  const [text, setText, clearText] = useDraftText('draft:note:text');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(false);
   const [error, setError] = useState('');
   const [customTime, setCustomTime] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch('/api/event-presets').then(r => r.json()).then(setPresets).catch(() => {});
-  }, []);
-
-  async function handleSubmit(value?: string) {
-    const note = (value || text).trim();
-    if (!note) return;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
     setSubmitting(true);
     setError('');
     try {
       await createLogEntry({
         timestamp: customTime ? new Date(customTime).toISOString() : new Date().toISOString(),
         type: 'note',
-        notes: note,
+        notes: text.trim(),
       });
       clearText();
       setToast(true);
@@ -46,33 +41,10 @@ export function EventLog({ onBack }: EventLogProps) {
         fontSize: 14, fontWeight: 500, color: 'var(--primary)',
         padding: '4px 0', marginBottom: 12,
       }}>
-        {'\u2190'} Log event
+        {'\u2190'} Log note
       </button>
 
-      <div style={{
-        fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
-        textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8,
-      }}>
-        Quick log
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        {presets.map(preset => (
-          <button
-            key={preset}
-            type="button"
-            onClick={() => setText(preset)}
-            style={{
-              background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
-              borderRadius: 14, padding: '8px 14px', fontSize: 13, fontWeight: 500,
-              color: 'var(--text-primary)', cursor: 'pointer',
-            }}
-          >
-            {preset}
-          </button>
-        ))}
-      </div>
-
-      <form onSubmit={e => { e.preventDefault(); handleSubmit(); }}>
+      <form onSubmit={handleSubmit}>
         <div style={{
           background: 'var(--bg-surface)', border: '0.5px solid var(--border)',
           borderRadius: 14, padding: 14, marginBottom: 12,
@@ -82,17 +54,18 @@ export function EventLog({ onBack }: EventLogProps) {
             letterSpacing: '0.05em', textTransform: 'uppercase',
             color: 'var(--text-secondary)', marginBottom: 6,
           }}>
-            Or describe it
+            Observation
           </label>
-          <input
-            type="text"
+          <textarea
             value={text}
             onChange={e => setText(e.target.value)}
-            placeholder="e.g. new laundry detergent, ate out at restaurant"
+            placeholder="e.g. skin feels dry today, rash improving on arms"
+            rows={3}
             style={{
               width: '100%', padding: 0, fontSize: 15,
               border: 'none', background: 'transparent',
-              fontFamily: 'inherit', color: 'var(--text-primary)', outline: 'none',
+              fontFamily: 'inherit', color: 'var(--text-primary)',
+              outline: 'none', resize: 'vertical',
             }}
           />
         </div>
@@ -137,10 +110,10 @@ export function EventLog({ onBack }: EventLogProps) {
             opacity: submitting || !text.trim() ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Saving\u2026' : 'Log Event'}
+          {submitting ? 'Saving\u2026' : 'Log Note'}
         </button>
       </form>
-      <Toast message="Event logged!" visible={toast} onDone={() => setToast(false)} />
+      <Toast message="Note logged!" visible={toast} onDone={() => setToast(false)} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // Service Worker for Eczema Tracker PWA
 
-const CACHE_NAME = 'eczema-tracker-v2';
+const CACHE_NAME = 'eczema-tracker-v3';
 const OFFLINE_QUEUE_STORE = 'offline-queue';
 
 // Cache app shell on install

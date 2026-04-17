@@ -142,3 +142,88 @@ class TestPushSubscription:
             "keys": {"p256dh": "key1", "auth": "auth1"},
         })
         assert resp.status_code == 201
+
+
+class TestEnvironmentReadings:
+    def _readings(self, n=3):
+        return [
+            {
+                "timestamp": f"2026-04-14T22:{i:02d}:00Z",
+                "temperature": 22.0 + i * 0.1,
+                "humidity": 55.0 + i * 0.2,
+            }
+            for i in range(n)
+        ]
+
+    def test_post_accepts_batch_and_returns_counts(self, client):
+        readings = self._readings(5)
+        resp = client.post("/api/environment", json={"readings": readings})
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data == {"inserted": 5, "total": 5}
+
+    def test_post_deduplicates_on_timestamp(self, client):
+        readings = self._readings(3)
+        first = client.post("/api/environment", json={"readings": readings})
+        assert first.json() == {"inserted": 3, "total": 3}
+        second = client.post("/api/environment", json={"readings": readings})
+        assert second.json() == {"inserted": 0, "total": 3}
+
+    def test_post_partial_overlap(self, client):
+        client.post("/api/environment", json={"readings": self._readings(3)})
+        overlap_batch = self._readings(5)  # includes the original 3
+        resp = client.post("/api/environment", json={"readings": overlap_batch})
+        assert resp.json() == {"inserted": 2, "total": 5}
+
+    def test_post_empty_batch(self, client):
+        resp = client.post("/api/environment", json={"readings": []})
+        assert resp.status_code == 201
+        assert resp.json() == {"inserted": 0, "total": 0}
+
+    def test_post_rejects_malformed_payload(self, client):
+        # Missing humidity
+        resp = client.post("/api/environment", json={
+            "readings": [{"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5}],
+        })
+        assert resp.status_code == 422
+
+    def test_post_accepts_custom_source(self, client):
+        readings = self._readings(2)
+        client.post(
+            "/api/environment",
+            json={"readings": readings, "source": "test_sensor"},
+        )
+        resp = client.get("/api/environment")
+        assert resp.status_code == 200
+        for r in resp.json():
+            assert r["source"] == "test_sensor"
+
+    def test_get_returns_inserted_readings(self, client):
+        readings = self._readings(3)
+        client.post("/api/environment", json={"readings": readings})
+        resp = client.get("/api/environment")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 3
+        assert data[0]["timestamp"] == "2026-04-14T22:00:00Z"
+        assert data[0]["temperature"] == 22.0
+
+    def test_get_filters_by_date_range(self, client):
+        readings = [
+            {"timestamp": "2026-04-13T22:00:00Z", "temperature": 20.0, "humidity": 50.0},
+            {"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0},
+            {"timestamp": "2026-04-15T22:00:00Z", "temperature": 25.0, "humidity": 60.0},
+        ]
+        client.post("/api/environment", json={"readings": readings})
+        resp = client.get(
+            "/api/environment?from=2026-04-14T00:00:00Z&to=2026-04-14T23:59:59Z"
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["temperature"] == 22.5
+
+    def test_get_empty_returns_empty_list(self, client):
+        resp = client.get("/api/environment")
+        assert resp.status_code == 200
+        assert resp.json() == []

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createLogEntry, getLogEntries } from '../api';
 import type { LogEntry } from '../api';
 import { Toast } from '../components/Toast';
+import { useDraftText } from '../useDraftText';
 
 interface MedsLogProps {
   onBack: () => void;
@@ -58,8 +59,8 @@ function RecentMeds({ onSelect }: { onSelect: (name: string, dose: string) => vo
 }
 
 export function MedsLog({ onBack }: MedsLogProps) {
-  const [name, setName] = useState('');
-  const [dose, setDose] = useState('');
+  const [name, setName, clearName] = useDraftText('draft:meds:name');
+  const [dose, setDose, clearDose] = useDraftText('draft:meds:dose');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(false);
   const [error, setError] = useState('');
@@ -83,8 +84,8 @@ export function MedsLog({ onBack }: MedsLogProps) {
         medication_name: name.trim(),
         medication_dose: dose.trim() || undefined,
       });
-      setName('');
-      setDose('');
+      clearName();
+      clearDose();
       setToast(true);
       nameRef.current?.focus();
     } catch (err) {

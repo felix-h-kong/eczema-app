@@ -76,6 +76,16 @@ class Database:
                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
                     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
                 );
+
+                CREATE TABLE IF NOT EXISTS environment_readings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL UNIQUE,
+                    temperature REAL NOT NULL,
+                    humidity REAL NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'govee_h5075',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_env_timestamp ON environment_readings(timestamp);
             """)
             # Allow parse_status to be NULL (remove NOT NULL constraint if present)
             # Check current schema and migrate if needed
@@ -269,6 +279,43 @@ class Database:
         conn = self._connect()
         try:
             rows = conn.execute("SELECT * FROM push_subscriptions").fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def insert_environment_readings(self, readings, source="govee_h5075"):
+        if not readings:
+            return 0
+        conn = self._connect()
+        try:
+            inserted = 0
+            for r in readings:
+                cursor = conn.execute(
+                    """INSERT OR IGNORE INTO environment_readings
+                       (timestamp, temperature, humidity, source)
+                       VALUES (?, ?, ?, ?)""",
+                    (r["timestamp"], r["temperature"], r["humidity"], source),
+                )
+                inserted += cursor.rowcount
+            conn.commit()
+            return inserted
+        finally:
+            conn.close()
+
+    def list_environment_readings(self, from_date=None, to_date=None):
+        sql = "SELECT * FROM environment_readings WHERE 1=1"
+        params = []
+        if from_date is not None:
+            sql += " AND timestamp >= ?"
+            params.append(from_date)
+        if to_date is not None:
+            sql += " AND timestamp <= ?"
+            params.append(to_date)
+        sql += " ORDER BY timestamp ASC"
+
+        conn = self._connect()
+        try:
+            rows = conn.execute(sql, params).fetchall()
             return [dict(row) for row in rows]
         finally:
             conn.close()

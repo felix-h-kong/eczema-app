@@ -39,7 +39,27 @@ WEEKLY_TASK_TIME_AEST = "09:00"
 
 # Analysis
 FLARE_WINDOW_HOURS = (6, 48)  # meals 6-48h before flare
-FLARE_SEVERITY_THRESHOLD = 7  # skin check-ins with severity >= this count as flares
+
+# Flare detection — tunable via config/analysis.txt
+def _load_analysis_config():
+    defaults = {"flare_rise_threshold": 3, "flare_rolling_window": 3}
+    path = CONFIG_DIR / "analysis.txt"
+    if path.exists():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                k = k.strip().lower()
+                if k in defaults:
+                    defaults[k] = int(v.strip())
+    return defaults
+
+def get_flare_config():
+    """Read flare detection config fresh from disk each time."""
+    cfg = _load_analysis_config()
+    return cfg["flare_rise_threshold"], cfg["flare_rolling_window"]
 MEDICATION_CONFOUND_HOURS = 12
 MIN_FLARE_APPEARANCES = 2
 LOW_FLARE_WARNING_THRESHOLD = 10

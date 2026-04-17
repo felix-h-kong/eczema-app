@@ -1,0 +1,2 @@
+flare_rise_threshold=2
+flare_rolling_window=1

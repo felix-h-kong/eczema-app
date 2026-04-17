@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TabBar } from './components/TabBar';
 import { LogHub } from './pages/LogHub';
 import { MealLog } from './pages/MealLog';
 import { FlareLog } from './pages/FlareLog';
 import { MedsLog } from './pages/MedsLog';
 import { EventLog } from './pages/EventLog';
+import { NoteLog } from './pages/NoteLog';
 import { History } from './pages/History';
 import { Analysis } from './pages/Analysis';
 import { subscribePush } from './api';
@@ -67,15 +68,37 @@ function App() {
     }
   }, []);
 
-  const handleBack = () => setLogForm(null);
+  // Push a history entry when navigating into a log sub-form so that
+  // Android's back gesture returns to the hub instead of minimizing the app.
+  const openLogForm = useCallback((form: string) => {
+    setLogForm(form);
+    window.history.pushState({ logForm: form }, '');
+  }, []);
+
+  const handleBack = useCallback(() => {
+    if (logForm) {
+      window.history.back();
+    }
+  }, [logForm]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      // When the user navigates back (Android gesture or browser back),
+      // return to the log hub if we're in a sub-form.
+      setLogForm((prev) => prev ? null : prev);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
-      {tab === 'log' && !logForm && <LogHub onSelect={setLogForm} />}
+      {tab === 'log' && !logForm && <LogHub onSelect={openLogForm} />}
       {tab === 'log' && logForm === 'meal' && <MealLog onBack={handleBack} />}
       {tab === 'log' && logForm === 'flare' && <FlareLog onBack={handleBack} />}
       {tab === 'log' && logForm === 'meds' && <MedsLog onBack={handleBack} />}
       {tab === 'log' && logForm === 'event' && <EventLog onBack={handleBack} />}
+      {tab === 'log' && logForm === 'note' && <NoteLog onBack={handleBack} />}
       {tab === 'history' && <History />}
       {tab === 'analysis' && <Analysis />}
       <TabBar active={tab} onSelect={(t) => { setTab(t); setLogForm(null); }} />

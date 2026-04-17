@@ -26,6 +26,7 @@ class TestDatabaseInit:
         assert "ingredient_aliases" in table_names
         assert "entry_images" in table_names
         assert "push_subscriptions" in table_names
+        assert "environment_readings" in table_names
 
 
 class TestLogEntries:
@@ -166,3 +167,82 @@ class TestPushSubscriptions:
         subs = db.list_push_subscriptions()
         assert len(subs) == 1
         assert "key2" in subs[0]["keys_json"]
+
+
+class TestEnvironmentReadings:
+    def test_insert_returns_count(self, db):
+        readings = [
+            {"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0},
+            {"timestamp": "2026-04-14T22:01:00Z", "temperature": 22.6, "humidity": 55.2},
+            {"timestamp": "2026-04-14T22:02:00Z", "temperature": 22.6, "humidity": 55.3},
+        ]
+        inserted = db.insert_environment_readings(readings)
+        assert inserted == 3
+
+    def test_insert_deduplicates_on_timestamp(self, db):
+        readings = [
+            {"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0},
+            {"timestamp": "2026-04-14T22:01:00Z", "temperature": 22.6, "humidity": 55.2},
+        ]
+        first = db.insert_environment_readings(readings)
+        assert first == 2
+        second = db.insert_environment_readings(readings)
+        assert second == 0
+
+    def test_insert_partial_overlap(self, db):
+        batch_a = [
+            {"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0},
+            {"timestamp": "2026-04-14T22:01:00Z", "temperature": 22.6, "humidity": 55.2},
+        ]
+        batch_b = [
+            {"timestamp": "2026-04-14T22:01:00Z", "temperature": 22.6, "humidity": 55.2},
+            {"timestamp": "2026-04-14T22:02:00Z", "temperature": 22.7, "humidity": 55.4},
+        ]
+        db.insert_environment_readings(batch_a)
+        inserted = db.insert_environment_readings(batch_b)
+        assert inserted == 1
+
+    def test_insert_with_source(self, db):
+        readings = [{"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0}]
+        db.insert_environment_readings(readings, source="test_source")
+        rows = db.list_environment_readings()
+        assert len(rows) == 1
+        assert rows[0]["source"] == "test_source"
+
+    def test_insert_default_source_is_govee_h5075(self, db):
+        readings = [{"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0}]
+        db.insert_environment_readings(readings)
+        rows = db.list_environment_readings()
+        assert rows[0]["source"] == "govee_h5075"
+
+    def test_list_orders_by_timestamp_ascending(self, db):
+        readings = [
+            {"timestamp": "2026-04-14T22:02:00Z", "temperature": 22.7, "humidity": 55.4},
+            {"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0},
+            {"timestamp": "2026-04-14T22:01:00Z", "temperature": 22.6, "humidity": 55.2},
+        ]
+        db.insert_environment_readings(readings)
+        rows = db.list_environment_readings()
+        timestamps = [r["timestamp"] for r in rows]
+        assert timestamps == [
+            "2026-04-14T22:00:00Z",
+            "2026-04-14T22:01:00Z",
+            "2026-04-14T22:02:00Z",
+        ]
+
+    def test_list_filters_by_date_range(self, db):
+        readings = [
+            {"timestamp": "2026-04-13T22:00:00Z", "temperature": 20.0, "humidity": 50.0},
+            {"timestamp": "2026-04-14T22:00:00Z", "temperature": 22.5, "humidity": 55.0},
+            {"timestamp": "2026-04-15T22:00:00Z", "temperature": 25.0, "humidity": 60.0},
+        ]
+        db.insert_environment_readings(readings)
+        rows = db.list_environment_readings(
+            from_date="2026-04-14T00:00:00Z",
+            to_date="2026-04-14T23:59:59Z",
+        )
+        assert len(rows) == 1
+        assert rows[0]["temperature"] == 22.5
+
+    def test_list_empty_returns_empty_list(self, db):
+        assert db.list_environment_readings() == []

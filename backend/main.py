@@ -70,6 +70,17 @@ class PushSubscribeRequest(BaseModel):
     keys: dict
 
 
+class EnvironmentReading(BaseModel):
+    timestamp: str
+    temperature: float
+    humidity: float
+
+
+class EnvironmentSyncRequest(BaseModel):
+    readings: list[EnvironmentReading]
+    source: str = "govee_h5075"
+
+
 @app.post("/api/log", status_code=201)
 def create_log_entry(entry: LogEntryCreate, background_tasks: BackgroundTasks, db: Database = Depends(get_db)):
     entry_id = db.insert_log_entry(
@@ -168,6 +179,22 @@ def push_subscribe(req: PushSubscribeRequest, db: Database = Depends(get_db)):
         keys_json=json.dumps(req.keys),
     )
     return {"ok": True}
+
+
+@app.post("/api/environment", status_code=201)
+def post_environment(req: EnvironmentSyncRequest, db: Database = Depends(get_db)):
+    readings = [r.model_dump() for r in req.readings]
+    inserted = db.insert_environment_readings(readings, source=req.source)
+    return {"inserted": inserted, "total": len(readings)}
+
+
+@app.get("/api/environment")
+def get_environment(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    db: Database = Depends(get_db),
+):
+    return db.list_environment_readings(from_date=from_date, to_date=to_date)
 
 
 class AnalyseRequest(BaseModel):
@@ -277,18 +304,71 @@ def serve_image(filename: str):
     return FileResponse(filepath)
 
 
+def _lookup_open_food_facts(upc: str) -> dict | None:
+    """Try Open Food Facts. Returns {"ingredients": ..., "name": ...} or None."""
+    try:
+        resp = httpx.get(
+            f"https://world.openfoodfacts.org/api/v0/product/{upc}.json",
+            timeout=5,
+        )
+        data = resp.json()
+        if data.get("status") != 1:
+            return None
+        product = data.get("product", {})
+        ingredients = product.get("ingredients_text", "")
+        name = product.get("product_name", "")
+        if not ingredients:
+            return None
+        return {"ingredients": ingredients, "name": name}
+    except Exception:
+        return None
+
+
+def _lookup_upc_itemdb(upc: str) -> dict | None:
+    """Try UPC Item DB (free, 100 lookups/day). Returns {"ingredients": ..., "name": ...} or None."""
+    try:
+        resp = httpx.get(
+            f"https://api.upcitemdb.com/prod/trial/lookup?upc={upc}",
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        items = data.get("items", [])
+        if not items:
+            return None
+        item = items[0]
+        name = item.get("title", "")
+        # UPC Item DB doesn't always have ingredients — use description as fallback
+        description = item.get("description", "")
+        if not name:
+            return None
+        return {"ingredients": description, "name": name}
+    except Exception:
+        return None
+
+
 @app.post("/api/barcode/{upc}")
 def barcode_lookup(upc: str):
-    resp = httpx.get(f"https://world.openfoodfacts.org/api/v0/product/{upc}.json")
-    data = resp.json()
-    if data.get("status") != 1:
-        raise HTTPException(status_code=404, detail=f"Product not found for barcode {upc}. It may not be in the Open Food Facts database.")
-    product = data.get("product", {})
-    ingredients = product.get("ingredients_text", "")
-    name = product.get("product_name", "")
-    if not ingredients:
-        raise HTTPException(status_code=404, detail=f"No ingredients listed for '{name or upc}'. Try entering them manually.")
-    return {"ingredients": ingredients, "name": name}
+    # Try Open Food Facts first (best for ingredients), then UPC Item DB (better product coverage)
+    result = _lookup_open_food_facts(upc)
+    if result:
+        return result
+
+    result = _lookup_upc_itemdb(upc)
+    if result and result["ingredients"]:
+        return result
+    if result and result["name"]:
+        # Found the product but no ingredients — return name so user can add ingredients manually
+        raise HTTPException(
+            status_code=404,
+            detail=f"Found '{result['name']}' but no ingredients listed. Try entering them manually.",
+        )
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Product not found for barcode {upc}. Try entering ingredients manually.",
+    )
 
 
 @app.post("/api/log/{entry_id}/reparse")
