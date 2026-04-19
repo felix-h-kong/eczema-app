@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EczemaLog</string>
+    <string name="title_activity_main">EczemaLog</string>
+    <string name="package_name">com.tasdcrc.eczemalog</string>
+    <string name="custom_url_scheme">com.tasdcrc.eczemalog</string>
+</resources>

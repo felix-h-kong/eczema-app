@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { TabBar } from './components/TabBar';
+import { SensorLED } from './components/SensorLED';
 import { LogHub } from './pages/LogHub';
 import { MealLog } from './pages/MealLog';
 import { FlareLog } from './pages/FlareLog';
@@ -8,6 +10,8 @@ import { EventLog } from './pages/EventLog';
 import { NoteLog } from './pages/NoteLog';
 import { History } from './pages/History';
 import { Analysis } from './pages/Analysis';
+import { Environment } from './pages/Environment';
+import { startForegroundPolling } from './foreground-sync';
 import { subscribePush } from './api';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -57,6 +61,12 @@ function App() {
 
   useEffect(() => { setupPushNotifications(); }, []);
 
+  // Foreground BLE polling — scan for sensor every 10 min when the app is open
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    return startForegroundPolling();
+  }, []);
+
   // Deep-link from notification clicks (e.g. weekly task -> event page)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -101,6 +111,8 @@ function App() {
       {tab === 'log' && logForm === 'note' && <NoteLog onBack={handleBack} />}
       {tab === 'history' && <History />}
       {tab === 'analysis' && <Analysis />}
+      {tab === 'environment' && <Environment />}
+      {Capacitor.isNativePlatform() && <SensorLED />}
       <TabBar active={tab} onSelect={(t) => { setTab(t); setLogForm(null); }} />
     </div>
   );
