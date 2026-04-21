@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getLogEntries, sendTestNotification, submitEnvironmentReadings } from '../api';
 import { setupPushNotifications } from '../App';
-import { syncH5075History, BleUnavailableError } from '../govee';
+import { syncH5075, WebBluetoothUnavailableError } from '../govee';
 import type { LogEntry } from '../api';
 
 interface LogHubProps {
@@ -170,7 +170,7 @@ export function LogHub({ onSelect }: LogHubProps) {
             setSyncing(true);
             setSyncStatus('');
             try {
-              const readings = await syncH5075History({
+              const readings = await syncH5075({
                 onProgress: (received, total) => {
                   setSyncStatus(`Downloading ${received}/${total} packets...`);
                 },
@@ -185,10 +185,10 @@ export function LogHub({ onSelect }: LogHubProps) {
                 `Saved ${result.inserted} new readings (${result.total - result.inserted} already on file).`,
               );
             } catch (err) {
-              if (err instanceof BleUnavailableError) {
-                setSyncStatus(err.message);
+              if (err instanceof WebBluetoothUnavailableError) {
+                setSyncStatus('Web Bluetooth not available. Use Chrome on Android.');
               } else if (err instanceof Error && err.name === 'NotFoundError') {
-                setSyncStatus('Sensor not found. Make sure it is nearby and powered on.');
+                setSyncStatus('No sensor selected.');
               } else {
                 setSyncStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
               }

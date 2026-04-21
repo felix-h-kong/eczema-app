@@ -2,7 +2,6 @@ const TABS = [
   { key: 'log', label: 'Log' },
   { key: 'history', label: 'History' },
   { key: 'analysis', label: 'Analyse' },
-  { key: 'environment', label: 'Env' },
 ];
 
 interface TabBarProps {
