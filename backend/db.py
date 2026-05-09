@@ -102,6 +102,16 @@ class Database:
                 );
                 CREATE INDEX IF NOT EXISTS idx_aq_timestamp ON air_quality_readings(timestamp);
                 CREATE INDEX IF NOT EXISTS idx_aq_site ON air_quality_readings(site_id);
+
+                CREATE TABLE IF NOT EXISTS ingredient_compositions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    parent_canonical TEXT NOT NULL,
+                    child_canonical TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(parent_canonical, child_canonical)
+                );
+                CREATE INDEX IF NOT EXISTS idx_compositions_parent ON ingredient_compositions(parent_canonical);
             """)
             # Allow parse_status to be NULL (remove NOT NULL constraint if present)
             # Check current schema and migrate if needed
@@ -253,6 +263,87 @@ class Database:
             return [dict(row) for row in rows]
         finally:
             conn.close()
+
+    def delete_alias(self, variant):
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM ingredient_aliases WHERE variant = ?", (variant,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def add_composition(self, parent, children, source):
+        parent = parent.strip().lower()
+        cleaned = [c.strip().lower() for c in children if c and c.strip()]
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM ingredient_compositions WHERE parent_canonical = ?", (parent,))
+            for child in cleaned:
+                conn.execute(
+                    """INSERT INTO ingredient_compositions (parent_canonical, child_canonical, source)
+                       VALUES (?, ?, ?)""",
+                    (parent, child, source),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_components(self, parent):
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT child_canonical FROM ingredient_compositions WHERE parent_canonical = ? ORDER BY id",
+                (parent.strip().lower(),),
+            ).fetchall()
+            return [r["child_canonical"] for r in rows]
+        finally:
+            conn.close()
+
+    def list_compositions(self):
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT parent_canonical, child_canonical, source, created_at "
+                "FROM ingredient_compositions ORDER BY parent_canonical, id"
+            ).fetchall()
+            grouped = {}
+            for r in rows:
+                p = r["parent_canonical"]
+                grouped.setdefault(p, {"parent": p, "source": r["source"], "children": []})
+                grouped[p]["children"].append(r["child_canonical"])
+            return list(grouped.values())
+        finally:
+            conn.close()
+
+    def delete_composition(self, parent):
+        conn = self._connect()
+        try:
+            conn.execute(
+                "DELETE FROM ingredient_compositions WHERE parent_canonical = ?",
+                (parent.strip().lower(),),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def resolve_ingredient(self, raw):
+        """Resolve a raw ingredient name through alias + composition lookup.
+
+        Returns a list of (name, source_parent_or_None) tuples. If the ingredient
+        has no composition, returns [(canonical, None)]. If it does, returns one
+        tuple per component with the parent name as the source. Single-level
+        expansion only — children are not themselves expanded.
+        """
+        if raw is None:
+            return []
+        normalized = raw.strip().lower()
+        if not normalized:
+            return []
+        canonical = self.resolve_alias(normalized)
+        components = self.get_components(canonical)
+        if components:
+            return [(c, canonical) for c in components]
+        return [(canonical, None)]
 
     def add_image(self, log_entry_id, image_path, timestamp):
         conn = self._connect()

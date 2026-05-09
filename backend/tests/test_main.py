@@ -134,6 +134,50 @@ class TestAdminEndpoints:
         })
         assert resp.status_code == 201
 
+    def test_list_aliases(self, client):
+        client.post("/api/admin/aliases", json={"variant": "tamari", "canonical": "soy sauce"})
+        client.post("/api/admin/aliases", json={"variant": "capsicum", "canonical": "bell pepper"})
+        resp = client.get("/api/admin/aliases")
+        assert resp.status_code == 200
+        assert len(resp.json()) == 2
+
+    def test_delete_alias(self, client):
+        client.post("/api/admin/aliases", json={"variant": "tamari", "canonical": "soy sauce"})
+        resp = client.delete("/api/admin/aliases/tamari")
+        assert resp.status_code == 200
+        assert client.get("/api/admin/aliases").json() == []
+
+    def test_add_composition(self, client):
+        resp = client.post("/api/admin/compositions", json={
+            "parent": "Continental Chicken Stock Pot",
+            "children": ["yeast extract", "salt", "monosodium glutamate"],
+            "source": "manual",
+        })
+        assert resp.status_code == 201
+        listing = client.get("/api/admin/compositions").json()
+        assert len(listing) == 1
+        assert listing[0]["parent"] == "continental chicken stock pot"
+        assert listing[0]["children"] == ["yeast extract", "salt", "monosodium glutamate"]
+        assert listing[0]["source"] == "manual"
+
+    def test_replace_composition(self, client):
+        client.post("/api/admin/compositions", json={
+            "parent": "stock pot", "children": ["yeast extract", "salt"], "source": "manual",
+        })
+        client.post("/api/admin/compositions", json={
+            "parent": "stock pot", "children": ["yeast extract", "salt", "msg"], "source": "manual",
+        })
+        listing = client.get("/api/admin/compositions").json()
+        assert listing[0]["children"] == ["yeast extract", "salt", "msg"]
+
+    def test_delete_composition(self, client):
+        client.post("/api/admin/compositions", json={
+            "parent": "stock pot", "children": ["yeast extract"], "source": "manual",
+        })
+        resp = client.delete("/api/admin/compositions/stock pot")
+        assert resp.status_code == 200
+        assert client.get("/api/admin/compositions").json() == []
+
 
 class TestPushSubscription:
     def test_subscribe(self, client):

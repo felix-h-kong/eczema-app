@@ -65,6 +65,12 @@ class AliasCreate(BaseModel):
     canonical: str
 
 
+class CompositionCreate(BaseModel):
+    parent: str
+    children: list[str]
+    source: str = "manual"
+
+
 class PushSubscribeRequest(BaseModel):
     endpoint: str
     keys: dict
@@ -177,6 +183,34 @@ def list_ingredients(db: Database = Depends(get_db)):
 @app.post("/api/admin/aliases", status_code=201)
 def add_alias(alias: AliasCreate, db: Database = Depends(get_db)):
     db.add_alias(alias.variant, alias.canonical)
+    return {"ok": True}
+
+
+@app.get("/api/admin/aliases")
+def get_aliases(db: Database = Depends(get_db)):
+    return db.list_aliases()
+
+
+@app.delete("/api/admin/aliases/{variant}")
+def delete_alias(variant: str, db: Database = Depends(get_db)):
+    db.delete_alias(variant)
+    return {"ok": True}
+
+
+@app.post("/api/admin/compositions", status_code=201)
+def add_composition(comp: CompositionCreate, db: Database = Depends(get_db)):
+    db.add_composition(comp.parent, comp.children, comp.source)
+    return {"ok": True}
+
+
+@app.get("/api/admin/compositions")
+def get_compositions(db: Database = Depends(get_db)):
+    return db.list_compositions()
+
+
+@app.delete("/api/admin/compositions/{parent}")
+def delete_composition(parent: str, db: Database = Depends(get_db)):
+    db.delete_composition(parent)
     return {"ok": True}
 
 
@@ -339,7 +373,12 @@ def serve_image(filename: str):
 
 
 def _lookup_open_food_facts(upc: str) -> dict | None:
-    """Try Open Food Facts. Returns {"ingredients": ..., "name": ...} or None."""
+    """Try Open Food Facts. Returns {"ingredients": ..., "name": ...} or None.
+
+    Prefers English ingredients (ingredients_text_en) when present, falling back
+    to the product's primary-language ingredients_text. OFF wraps allergens in
+    underscores (e.g. "_Soja_" = italicized in their UI); we strip those.
+    """
     try:
         resp = httpx.get(
             f"https://world.openfoodfacts.org/api/v0/product/{upc}.json",
@@ -349,8 +388,9 @@ def _lookup_open_food_facts(upc: str) -> dict | None:
         if data.get("status") != 1:
             return None
         product = data.get("product", {})
-        ingredients = product.get("ingredients_text", "")
-        name = product.get("product_name", "")
+        ingredients = product.get("ingredients_text_en") or product.get("ingredients_text", "")
+        ingredients = ingredients.replace("_", "")
+        name = product.get("product_name_en") or product.get("product_name", "")
         if not ingredients:
             return None
         return {"ingredients": ingredients, "name": name}
@@ -382,15 +422,27 @@ def _lookup_upc_itemdb(upc: str) -> dict | None:
         return None
 
 
+def _cache_barcode_composition(db: Database, name: str, ingredients_text: str) -> None:
+    """Store barcode-returned ingredients as a composition keyed by product name."""
+    if not name or not ingredients_text:
+        return
+    children = [t.strip() for t in ingredients_text.split(",") if t.strip()]
+    if not children:
+        return
+    db.add_composition(name, children, source="barcode")
+
+
 @app.post("/api/barcode/{upc}")
-def barcode_lookup(upc: str):
+def barcode_lookup(upc: str, db: Database = Depends(get_db)):
     # Try Open Food Facts first (best for ingredients), then UPC Item DB (better product coverage)
     result = _lookup_open_food_facts(upc)
     if result:
+        _cache_barcode_composition(db, result.get("name", ""), result.get("ingredients", ""))
         return result
 
     result = _lookup_upc_itemdb(upc)
     if result and result["ingredients"]:
+        _cache_barcode_composition(db, result.get("name", ""), result.get("ingredients", ""))
         return result
     if result and result["name"]:
         # Found the product but no ingredients — return name so user can add ingredients manually

@@ -141,6 +141,87 @@ class TestIngredientAliases:
         assert len(aliases) == 2
 
 
+class TestIngredientCompositions:
+    def test_add_and_get_components(self, db):
+        db.add_composition("continental chicken stock pot",
+                           ["yeast extract", "salt", "msg"], source="manual")
+        assert db.get_components("continental chicken stock pot") == ["yeast extract", "salt", "msg"]
+
+    def test_add_composition_lowercases_and_strips(self, db):
+        db.add_composition("  Continental Chicken Stock Pot  ",
+                           ["  Yeast Extract ", "SALT"], source="manual")
+        assert db.get_components("continental chicken stock pot") == ["yeast extract", "salt"]
+
+    def test_add_composition_replaces_existing(self, db):
+        db.add_composition("tomato sauce", ["tomato", "salt"], source="manual")
+        db.add_composition("tomato sauce", ["tomato", "vinegar", "sugar"], source="manual")
+        assert db.get_components("tomato sauce") == ["tomato", "vinegar", "sugar"]
+
+    def test_add_composition_skips_blank_children(self, db):
+        db.add_composition("x", ["a", "", "  ", "b"], source="manual")
+        assert db.get_components("x") == ["a", "b"]
+
+    def test_get_components_missing_returns_empty(self, db):
+        assert db.get_components("nonexistent") == []
+
+    def test_list_compositions_groups_by_parent(self, db):
+        db.add_composition("stock pot", ["yeast extract", "salt"], source="manual")
+        db.add_composition("vegemite", ["yeast extract", "salt", "malt extract"], source="barcode")
+        listing = db.list_compositions()
+        assert len(listing) == 2
+        by_parent = {c["parent"]: c for c in listing}
+        assert by_parent["stock pot"]["children"] == ["yeast extract", "salt"]
+        assert by_parent["stock pot"]["source"] == "manual"
+        assert by_parent["vegemite"]["children"] == ["yeast extract", "salt", "malt extract"]
+        assert by_parent["vegemite"]["source"] == "barcode"
+
+    def test_delete_composition(self, db):
+        db.add_composition("stock pot", ["yeast extract"], source="manual")
+        db.delete_composition("stock pot")
+        assert db.get_components("stock pot") == []
+
+
+class TestResolveIngredient:
+    def test_no_alias_no_composition_returns_self(self, db):
+        assert db.resolve_ingredient("rice") == [("rice", None)]
+
+    def test_lowercases_and_strips(self, db):
+        assert db.resolve_ingredient("  Rice  ") == [("rice", None)]
+
+    def test_empty_or_none_returns_empty(self, db):
+        assert db.resolve_ingredient("") == []
+        assert db.resolve_ingredient("   ") == []
+        assert db.resolve_ingredient(None) == []
+
+    def test_alias_only_returns_canonical(self, db):
+        db.add_alias("tamari", "soy sauce")
+        assert db.resolve_ingredient("tamari") == [("soy sauce", None)]
+
+    def test_composition_only_expands_with_provenance(self, db):
+        db.add_composition("stock pot", ["yeast extract", "salt"], source="manual")
+        result = db.resolve_ingredient("stock pot")
+        assert result == [("yeast extract", "stock pot"), ("salt", "stock pot")]
+
+    def test_alias_then_composition(self, db):
+        db.add_alias("chicken stock cube", "continental chicken stock pot")
+        db.add_composition("continental chicken stock pot",
+                           ["yeast extract", "salt", "msg"], source="manual")
+        result = db.resolve_ingredient("Chicken Stock Cube")
+        assert result == [
+            ("yeast extract", "continental chicken stock pot"),
+            ("salt", "continental chicken stock pot"),
+            ("msg", "continental chicken stock pot"),
+        ]
+
+    def test_single_level_expansion_only(self, db):
+        # If a child is itself a composition parent, we do NOT recurse.
+        db.add_composition("vegemite", ["yeast extract", "salt"], source="manual")
+        db.add_composition("yeast extract", ["should-not-recurse"], source="manual")
+        result = db.resolve_ingredient("vegemite")
+        assert ("yeast extract", "vegemite") in result
+        assert all(c[0] != "should-not-recurse" for c in result)
+
+
 class TestEntryImages:
     def test_add_and_list_images(self, db):
         entry_id = db.insert_log_entry(

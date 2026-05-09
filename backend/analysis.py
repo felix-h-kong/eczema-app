@@ -56,7 +56,8 @@ def _detect_flares(all_skin: list[dict]) -> list[dict]:
     """Detect flares as rising edges in severity.
 
     A flare is a skin check whose severity is >= rise_threshold above the
-    rolling average of the previous rolling_window checks.
+    rolling average of the previous rolling_window checks. Each qualifying
+    check is its own anchor — no per-day collapsing.
     Config is read fresh from config/analysis.txt each call.
     """
     rise_threshold, rolling_window = get_flare_config()
@@ -70,13 +71,7 @@ def _detect_flares(all_skin: list[dict]) -> list[dict]:
         avg = sum((e.get("severity") or 0) for e in window) / rolling_window
         if severity - avg >= rise_threshold:
             flares.append(entry)
-    # Collapse multiple flares on the same calendar day (UTC) — keep the highest severity
-    by_day: dict[str, dict] = {}
-    for f in flares:
-        day = _parse_ts(f["timestamp"]).date().isoformat()
-        if day not in by_day or (f.get("severity") or 0) > (by_day[day].get("severity") or 0):
-            by_day[day] = f
-    return list(by_day.values())
+    return flares
 
 
 def compute_correlation(db, use_likely: bool = False) -> dict:

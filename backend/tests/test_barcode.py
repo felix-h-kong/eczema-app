@@ -96,3 +96,57 @@ class TestBarcodeEndpoint:
         resp = client.post("/api/barcode/0000000000")
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
+
+    @patch("main.httpx.get")
+    def test_barcode_off_caches_composition(self, mock_get, client):
+        """A successful OFF lookup should also cache the ingredients as a composition."""
+        mock_get.return_value = _mock_off_response(1, {
+            "ingredients_text": "yeast extract, salt, monosodium glutamate, sugar",
+            "product_name": "Continental Chicken Stock Pot",
+        })
+        client.post("/api/barcode/1111111111")
+        comps = client.get("/api/admin/compositions").json()
+        assert len(comps) == 1
+        assert comps[0]["parent"] == "continental chicken stock pot"
+        assert comps[0]["children"] == ["yeast extract", "salt", "monosodium glutamate", "sugar"]
+        assert comps[0]["source"] == "barcode"
+
+    @patch("main.httpx.get")
+    def test_barcode_off_prefers_english_and_strips_markers(self, mock_get, client):
+        """OFF returns both German and English — should prefer English and strip allergen markers."""
+        mock_get.return_value = _mock_off_response(1, {
+            "ingredients_text": "Zucker, Palmfett, _Weizenmehl_, Salz",
+            "ingredients_text_en": "Sugar, Palm fat, _Wheat flour_, Salt",
+            "product_name": "Ritter Sport",
+            "product_name_en": "Ritter Sport",
+        })
+        resp = client.post("/api/barcode/1111111111")
+        assert resp.status_code == 200
+        assert resp.json()["ingredients"] == "Sugar, Palm fat, Wheat flour, Salt"
+
+    @patch("main.httpx.get")
+    def test_barcode_off_falls_back_when_no_english(self, mock_get, client):
+        """No ingredients_text_en — fall back to primary language, still strip markers."""
+        mock_get.return_value = _mock_off_response(1, {
+            "ingredients_text": "Zucker, Palmfett, _Weizenmehl_, Salz",
+            "product_name": "Ritter Sport",
+        })
+        resp = client.post("/api/barcode/1111111111")
+        assert resp.status_code == 200
+        assert resp.json()["ingredients"] == "Zucker, Palmfett, Weizenmehl, Salz"
+
+    @patch("main.httpx.get")
+    def test_barcode_upcitemdb_caches_composition(self, mock_get, client):
+        """UPC Item DB success also caches a composition (using description as ingredients)."""
+        mock_get.side_effect = [
+            _mock_off_response(0),
+            _mock_upcitemdb_response(200, [{
+                "title": "Whittaker's Hazella",
+                "description": "hazelnuts, cocoa butter, sugar, milk solids",
+            }]),
+        ]
+        client.post("/api/barcode/9400550003")
+        comps = client.get("/api/admin/compositions").json()
+        assert len(comps) == 1
+        assert comps[0]["parent"] == "whittaker's hazella"
+        assert comps[0]["source"] == "barcode"

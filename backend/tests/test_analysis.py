@@ -97,8 +97,8 @@ class TestFlareDetection:
         assert len(flares) == 1
         assert flares[0]["severity"] == 8
 
-    def test_same_day_collapsed(self):
-        """Multiple rising edges on the same day should collapse to one (highest severity)."""
+    def test_same_day_kept_separate(self):
+        """Multiple rising edges on the same day are kept as separate per-check anchors."""
         from analysis import _detect_flares
         entries = [
             *_baseline_checks(),
@@ -106,8 +106,9 @@ class TestFlareDetection:
             {"timestamp": "2026-03-20T14:00:00Z", "type": "flare", "severity": 8},
         ]
         flares = _detect_flares(entries)
-        assert len(flares) == 1
-        assert flares[0]["severity"] == 8
+        assert len(flares) == 2
+        severities = {f["severity"] for f in flares}
+        assert severities == {6, 8}
 
     def test_not_enough_history(self):
         """With fewer than FLARE_ROLLING_WINDOW prior entries, no flares detected."""
