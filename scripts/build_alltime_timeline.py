@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""All-time severity timeline — Mar 23 to May 1, 2026."""
+"""All-time severity timeline — Mar 23 to Jun 6, 2026."""
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -59,6 +59,48 @@ PHASES = [
         "start": date(2026, 4, 26),
         "end": date(2026, 5, 2),
         "color": "#ffd0b0",
+    },
+    {
+        "box_label": "Sustained sev 7\nHK restaurant meals\n+ Cali Press, biscoff",
+        "start": date(2026, 5, 2),
+        "end": date(2026, 5, 5),
+        "color": "#ffb8a0",
+        "fontsize": 7.5,
+    },
+    {
+        "box_label": "Frozen clean-diet\nrecovery\n(sev → 3)",
+        "start": date(2026, 5, 5),
+        "end": date(2026, 5, 9),
+        "color": "#ccf5d4",
+        "fontsize": 8.0,
+    },
+    {
+        "box_label": "Cold/flu illness\n+ dust mite\ncovers installed",
+        "start": date(2026, 5, 9),
+        "end": date(2026, 5, 13),
+        "color": "#e8d8f0",
+        "fontsize": 7.5,
+    },
+    {
+        "box_label": "Dupixent started\n(200mg loading)",
+        "start": date(2026, 5, 13),
+        "end": date(2026, 5, 17),
+        "color": "#cce0ff",
+        "fontsize": 8.0,
+    },
+    {
+        "box_label": "Dupixent response:\nbody clearing\n(sev → 3–4)",
+        "start": date(2026, 5, 17),
+        "end": date(2026, 5, 26),
+        "color": "#ccf5d4",
+        "fontsize": 8.0,
+    },
+    {
+        "box_label": "Residual: facial\nredness only\n(heat / flushing-linked)",
+        "start": date(2026, 5, 26),
+        "end": date(2026, 6, 7),
+        "color": "#e6f0d6",
+        "fontsize": 7.5,
     },
 ]
 
@@ -162,12 +204,79 @@ ANNOTATIONS = [
         "color": "#8b0000",
     },
     {
-        "date": date(2026, 5, 1),
+        "date": date(2026, 5, 3),
         "y": 7.0,
-        "text": "Today  sev=7",
-        "xytext": (-78, 18),
+        "text": "HK restaurant\nrun (stir-fried\nbeef noodle,\ncurry, pepper beef)",
+        "xytext": (-30, 22),
         "arrowstyle": "->",
-        "color": "#cc0000",
+        "color": "#8b0000",
+    },
+    {
+        "date": date(2026, 5, 7),
+        "y": 3.0,
+        "text": "Sev=3 post-gym\n(frozen poached\nchicken + Marion's\nchili rotation)",
+        "xytext": (-10, -55),
+        "arrowstyle": "->",
+        "color": "#1a6e1a",
+        "weight": "bold",
+    },
+    {
+        "date": date(2026, 5, 9),
+        "y": 5.0,
+        "text": "Got sick:\ncold + flu",
+        "xytext": (-18, 28),
+        "arrowstyle": "->",
+        "color": "#8b0000",
+    },
+    {
+        "date": date(2026, 5, 10),
+        "y": 5.0,
+        "text": "Dust mite\ncovers installed",
+        "xytext": (10, -42),
+        "arrowstyle": "->",
+        "color": "#005a9e",
+    },
+    {
+        "date": date(2026, 5, 13),
+        "y": 8.0,
+        "text": "Dupixent 200mg\n(double-dose loading)\nSev=8 same morning",
+        "xytext": (-130, 18),
+        "arrowstyle": "->",
+        "color": "#005a9e",
+        "weight": "bold",
+    },
+    {
+        "date": date(2026, 5, 16),
+        "y": 4.0,
+        "text": "sev=4\n(improving on\nDupixent)",
+        "xytext": (-78, -40),
+        "arrowstyle": "->",
+        "color": "#1a6e1a",
+        "weight": "bold",
+    },
+    {
+        "date": date(2026, 5, 26),
+        "y": 3.5,
+        "text": "Dupixent\n2nd dose",
+        "xytext": (-8, -42),
+        "arrowstyle": "->",
+        "color": "#005a9e",
+    },
+    {
+        "date": date(2026, 5, 30),
+        "y": 6.0,
+        "text": "Facial spike (6):\nsunscreen + heat\n+ aged-histamine\npile-up",
+        "xytext": (-30, 26),
+        "arrowstyle": "->",
+        "color": "#8b0000",
+    },
+    {
+        "date": date(2026, 6, 3),
+        "y": 3.0,
+        "text": "Body smooth;\nface-only redness\nremains (heat-linked)",
+        "xytext": (8, -52),
+        "arrowstyle": "->",
+        "color": "#1a6e1a",
         "weight": "bold",
     },
 ]
@@ -187,15 +296,20 @@ WEEK_MONDAYS = [
     date(2026, 4, 13),
     date(2026, 4, 20),
     date(2026, 4, 27),
+    date(2026, 5, 4),
+    date(2026, 5, 11),
+    date(2026, 5, 18),
+    date(2026, 5, 25),
+    date(2026, 6, 1),
 ]
 
 
-def to_local_date(ts_str: str) -> date:
+def to_local_datetime(ts_str: str) -> datetime:
     ts_str = ts_str.replace("Z", "+00:00")
     dt = datetime.fromisoformat(ts_str)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return (dt + timedelta(hours=SYDNEY_OFFSET)).date()
+    return (dt + timedelta(hours=SYDNEY_OFFSET)).replace(tzinfo=None)
 
 
 def main():
@@ -204,21 +318,20 @@ def main():
     db = Database(DB_PATH)
     skin_entries = db.list_log_entries(entry_type="flare")
 
-    by_day: dict[date, list[int]] = defaultdict(list)
+    # Every individual severity reading, kept at its actual local timestamp
+    points: list[tuple[datetime, int]] = []
     for e in skin_entries:
         sev = e.get("severity")
         if sev is None:
             continue
-        by_day[to_local_date(e["timestamp"])].append(sev)
+        points.append((to_local_datetime(e["timestamp"]), sev))
+    points.sort()
 
-    days_sorted = sorted(by_day.keys())
-    daily_avg = {d: sum(v) / len(v) for d, v in by_day.items()}
+    # Phase 4 average for annotation (all readings in the window)
+    phase4_pts = [(dt, s) for dt, s in points if date(2026, 4, 12) <= dt.date() < date(2026, 4, 23)]
+    phase4_avg = sum(s for _, s in phase4_pts) / len(phase4_pts) if phase4_pts else None
 
-    # Phase 4 average for annotation
-    phase4_days = [d for d in days_sorted if date(2026, 4, 12) <= d < date(2026, 4, 23)]
-    phase4_avg = sum(daily_avg[d] for d in phase4_days) / len(phase4_days) if phase4_days else None
-
-    fig, ax = plt.subplots(figsize=(24, 7))
+    fig, ax = plt.subplots(figsize=(40, 7))
 
     for phase in PHASES:
         ax.axvspan(
@@ -263,16 +376,16 @@ def main():
             fontsize=8, color="#999999", va="top",
         )
 
-    # Daily data points
-    plot_dates = [mdates.date2num(d) for d in days_sorted]
-    plot_vals = [daily_avg[d] for d in days_sorted]
-    ax.plot(plot_dates, plot_vals, color="#444444", linewidth=1.4, zorder=3)
-    ax.scatter(plot_dates, plot_vals, color="#e85a1e", s=50, zorder=4)
+    # Individual readings, plotted at their real timestamp
+    plot_dates = [mdates.date2num(dt) for dt, _ in points]
+    plot_vals = [s for _, s in points]
+    ax.plot(plot_dates, plot_vals, color="#444444", linewidth=1.0, alpha=0.7, zorder=3)
+    ax.scatter(plot_dates, plot_vals, color="#e85a1e", s=42, zorder=4)
 
     # Phase 4 average line
-    if phase4_avg and phase4_days:
-        x0 = mdates.date2num(phase4_days[0])
-        x1 = mdates.date2num(phase4_days[-1])
+    if phase4_avg and phase4_pts:
+        x0 = mdates.date2num(phase4_pts[0][0])
+        x1 = mdates.date2num(phase4_pts[-1][0])
         ax.annotate(
             "",
             xy=(x1, phase4_avg), xytext=(x0, phase4_avg),
@@ -303,7 +416,7 @@ def main():
         )
 
     # Right-side zone labels
-    x_label = mdates.date2num(date(2026, 5, 1)) + 0.3
+    x_label = mdates.date2num(date(2026, 6, 7)) + 0.3
     for zone in SEVERITY_ZONES:
         mid_y = (zone["ymin"] + zone["ymax"]) / 2
         ax.text(
@@ -312,25 +425,25 @@ def main():
             clip_on=False,
         )
 
-    ax.set_xlim(mdates.date2num(date(2026, 3, 22)), mdates.date2num(date(2026, 5, 1)))
+    ax.set_xlim(mdates.date2num(date(2026, 3, 22)), mdates.date2num(date(2026, 6, 7)))
     ax.set_ylim(0, 10)
     ax.xaxis.set_major_locator(DayLocator(interval=2))
     ax.xaxis.set_major_formatter(DateFormatter("%b %-d"))
     plt.xticks(rotation=0, ha="center", fontsize=12)
     plt.yticks(range(0, 11, 2), fontsize=12)
     ax.set_xlabel("Date (2026)", fontsize=14, labelpad=8)
-    ax.set_ylabel("Daily Average Severity", fontsize=14, labelpad=8)
+    ax.set_ylabel("Severity (0–10 scale)", fontsize=14, labelpad=8)
     ax.grid(axis="y", linestyle="--", alpha=0.4, zorder=1)
     ax.tick_params(axis="both", which="major", labelsize=12)
 
-    daily_dots = plt.scatter([], [], color="#e85a1e", s=50, label="Daily avg severity")
-    ax.legend(handles=[daily_dots], loc="upper right", fontsize=10,
+    reading_dots = plt.scatter([], [], color="#e85a1e", s=42, label="Severity reading")
+    ax.legend(handles=[reading_dots], loc="upper right", fontsize=10,
               framealpha=0.92, edgecolor="#cccccc")
 
-    n_days = len(days_sorted)
-    n_checks = sum(len(v) for v in by_day.values())
+    n_checks = len(points)
+    n_days = len({dt.date() for dt, _ in points})
     plt.title(
-        "Eczema Severity — Full Tracking Period (Mar 23 – May 1, 2026)",
+        "Eczema Severity — Full Tracking Period (Mar 23 – Jun 6, 2026)",
         fontsize=18, fontweight="bold", pad=10,
     )
     plt.suptitle(
