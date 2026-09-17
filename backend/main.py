@@ -10,6 +10,7 @@ import httpx
 from dotenv import load_dotenv
 
 from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, Query, UploadFile, File
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,6 +21,31 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 from db import Database
 
 app = FastAPI()
+
+# Responses that are already compressed. Re-deflating a 3.7MB JPEG costs the Pi
+# real CPU and saves nothing, and Starlette's GZipMiddleware compresses every
+# content type it is given.
+_INCOMPRESSIBLE_SUFFIXES = (
+    ".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".zip",
+    ".woff", ".woff2",  # already compressed; gzip costs CPU and can grow them
+)
+
+
+class SelectiveGZipMiddleware(GZipMiddleware):
+    """GZip text and JSON, pass image/binary responses through untouched."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "").lower()
+            if path.startswith("/api/images/") or path.endswith(_INCOMPRESSIBLE_SUFFIXES):
+                await self.app(scope, receive, send)
+                return
+        await super().__call__(scope, receive, send)
+
+
+# level 6 is the usual web default: near-identical ratio to 9 on JSON for a
+# fraction of the CPU, which matters on a Pi.
+app.add_middleware(SelectiveGZipMiddleware, minimum_size=1000, compresslevel=6)
 
 _db: Optional[Database] = None
 _analysis_jobs: dict[str, dict] = {}
@@ -134,8 +160,9 @@ def list_logs(
     db: Database = Depends(get_db),
 ):
     entries = db.list_log_entries(entry_type=type, from_date=from_date, to_date=to_date)
+    images_by_entry = db.images_by_entry()
     for entry in entries:
-        images = db.list_images(entry["id"])
+        images = images_by_entry.get(entry["id"])
         if images:
             entry["images"] = [
                 f"/api/images/{Path(img['image_path']).name}" for img in images

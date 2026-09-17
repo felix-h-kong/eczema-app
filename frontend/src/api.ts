@@ -163,25 +163,3 @@ export async function getEnvironmentReadings(
   if (!resp.ok) throw new Error(`Failed to fetch environment readings: ${resp.status}`);
   return resp.json();
 }
-
-export interface AirQualityReading {
-  timestamp: string;
-  site_id: number;
-  site_name: string;
-  parameter: string;
-  value: number | null;
-  unit: string;
-  category: string | null;
-}
-
-export async function getAirQualityReadings(
-  params?: { from?: string; to?: string; site_id?: number },
-): Promise<AirQualityReading[]> {
-  const query = new URLSearchParams();
-  if (params?.from) query.set('from', params.from);
-  if (params?.to) query.set('to', params.to);
-  if (params?.site_id != null) query.set('site_id', String(params.site_id));
-  const resp = await fetch(`${API_BASE}/air-quality?${query}`);
-  if (!resp.ok) throw new Error(`Failed to fetch air quality readings: ${resp.status}`);
-  return resp.json();
-}

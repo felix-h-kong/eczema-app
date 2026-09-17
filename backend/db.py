@@ -156,6 +156,12 @@ class Database:
                     DROP TABLE _entry_images_old;
                     PRAGMA foreign_keys=ON;
                 """)
+            # Created after the migrations above: the entry_images rebuild drops
+            # the table (and its indexes) and recreates it from scratch.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_entry_images_log_entry "
+                "ON entry_images(log_entry_id)"
+            )
             conn.commit()
         finally:
             conn.close()
@@ -366,6 +372,27 @@ class Database:
             return [dict(row) for row in rows]
         finally:
             conn.close()
+
+    def images_by_entry(self):
+        """Every image row, grouped by log_entry_id, in one query.
+
+        Calling list_images() per entry meant one fresh connection (plus its WAL
+        and foreign_keys pragmas) per row, which cost ~2.8s over 1600 entries on
+        the Pi. The table holds one row per attached photo, so fetching it whole
+        is cheaper than filtering by a list of entry ids -- and it sidesteps
+        SQLite's host-parameter limit, which 1600 ids would blow past. Entries
+        with no images are simply absent from the returned dict.
+        """
+        conn = self._connect()
+        try:
+            rows = conn.execute("SELECT * FROM entry_images").fetchall()
+        finally:
+            conn.close()
+
+        grouped = {}
+        for row in rows:
+            grouped.setdefault(row["log_entry_id"], []).append(dict(row))
+        return grouped
 
     def add_push_subscription(self, endpoint, keys_json):
         conn = self._connect()
